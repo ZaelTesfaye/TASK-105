@@ -25,7 +25,7 @@ Backend service for a local group-leader commerce model with catalog/search, inv
 repo/
 ├── app/                 # Flask application
 ├── migrations/          # Alembic migrations
-├── scripts/             # Container entrypoint (migrations + seed + start)
+├── scripts/             # start.sh, seed, migrate (ci_run_tests.sh optional alias)
 ├── unit_tests/          # Unit tests
 ├── API_tests/           # API functional tests
 ├── run_tests.sh / run_tests.ps1
@@ -83,17 +83,24 @@ FLASK_ENV=production APP_VERSION=0.2.0 SECRET_KEY=your-secret docker compose up 
 
 If you omit them, defaults are defined in `docker-compose.yml`.
 
-## Tests (inside the running container)
+## Tests
 
-With the stack up:
+**Required command (acceptance):** from `repo/` run:
 
 ```bash
-docker compose exec app bash run_tests.sh
+bash run_tests.sh
 ```
 
-On Windows, from `repo/`:
+- **Host with dependencies:** run `pip install -r requirements.txt` first; tests execute on your machine.
+- **Host without pytest (e.g. CI):** the same `run_tests.sh` detects that, and **re-runs itself inside** the Docker app image (needs `docker compose` and an image build — run `docker compose build` once in the job before `bash run_tests.sh`).
 
-```powershell
+On Windows: `powershell -ExecutionPolicy Bypass -File run_tests.ps1` (host with deps only).
+
+Optional: `bash scripts/ci_run_tests.sh` is only a thin wrapper that calls `run_tests.sh`.
+
+### Already-running container
+
+```bash
 docker compose exec app bash run_tests.sh
 ```
 

@@ -1,12 +1,31 @@
 #!/usr/bin/env bash
 # ============================================================
-# run_tests.sh — One-click test runner for the acceptance suite
-# Run from the project root:  bash run_tests.sh
+# run_tests.sh — One-click test runner for the acceptance suite (required entry point).
+# Run from repo/:  bash run_tests.sh
+#
+# - If this Python has pytest (after pip install -r requirements.txt), tests run on the host.
+# - If pytest is missing (typical CI with only Docker), this script re-invokes itself inside
+#   the app image so the same file path still satisfies "run run_tests.sh".
 # ============================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 REPO="$ROOT"
+
+# Re-run inside Docker once when host has no pytest (avoids requiring a second script name).
+if [ "${RUN_TESTS_SH_IN_CONTAINER:-}" != "1" ]; then
+  if ! python -m pytest --version >/dev/null 2>&1; then
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+      echo "[INFO]  pytest not found on host — running the same run_tests.sh inside Docker..."
+      cd "$REPO"
+      exec env RUN_TESTS_SH_IN_CONTAINER=1 \
+        docker compose run -T --rm --no-deps \
+        --entrypoint "" \
+        -e RUN_TESTS_SH_IN_CONTAINER=1 \
+        app bash /app/run_tests.sh "$@"
+    fi
+  fi
+fi
 
 # ── Colour helpers ──────────────────────────────────────────
 GREEN='\033[0;32m'; RED='\033[0;31m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -25,7 +44,10 @@ info "Checking Python …"
 python --version 2>&1 || { fail "python not found — install Python 3.12+"; exit 1; }
 
 info "Checking pytest …"
-python -m pytest --version 2>&1 || { fail "pytest not found — run: pip install pytest"; exit 1; }
+python -m pytest --version 2>&1 || {
+  fail "pytest not found — run: pip install -r requirements.txt, or install Docker and docker compose"
+  exit 1
+}
 
 # ── Data directories and Fernet key ─────────────────────────
 info "Ensuring data directories exist …"
