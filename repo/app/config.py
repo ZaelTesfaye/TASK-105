@@ -40,6 +40,8 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
+    # Avoid disk writes on every HTTP request during tests (major perf win for benchmarks).
+    LOG_FILE = os.environ.get("LOG_FILE", os.devnull)
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     # StaticPool: all connections share one in-memory DB, required for
     # WebSocket tests where Flask-SocketIO handlers run in a separate thread.

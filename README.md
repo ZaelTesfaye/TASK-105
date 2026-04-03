@@ -85,6 +85,8 @@ If you omit them, defaults are defined in `docker-compose.yml`.
 
 ## Tests
 
+**Pre-merge acceptance gate:** every change must pass the full suite with **exit code 0** before merging. From `repo/`, run `bash run_tests.sh` or `powershell -ExecutionPolicy Bypass -File run_tests.ps1` (Windows with deps). No merge without a green run.
+
 **Required command (acceptance):** from `repo/` run:
 
 ```bash

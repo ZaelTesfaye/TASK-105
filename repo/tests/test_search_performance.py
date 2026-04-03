@@ -10,7 +10,19 @@ import statistics
 
 import pytest
 from app.extensions import db as _db
-from app.models.catalog import Product, ProductAttribute, ProductTag
+from app.models.catalog import Product
+
+# Each token appears in ~1/50 of rows (~1k matches per keyword at 50k scale) so FTS + COUNT
+# stay realistic. The old seed put "Widget"/"Alpha"/"Product" on every row (~50k hits/query).
+PERF_BUCKET_TERMS = (
+    "Widget", "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Gamma",
+    "Helium", "Indigo", "Juliet", "Kilo", "Lima", "Metro", "Nova", "Oscar",
+    "Papa", "Quorum", "Romeo", "Sierra", "Tango", "Ulster", "Victor", "Whiskey",
+    "Xray", "Yankee", "Zulu", "Axiom", "Beacon", "Coral", "Drift", "Eagle",
+    "Frost", "Gable", "Haven", "Iris", "Jade", "Kite", "Lumen", "Mason",
+    "Nimbus", "Onyx", "Petal", "Quartz", "Raven", "Sable", "Torch", "Umber",
+    "Vortex", "Willow",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -61,16 +73,20 @@ def seed_products(perf_app):
     categories = ["Electronics", "Clothing", "Food", "Tools", "Sports",
                   "Books", "Toys", "Health", "Home", "Garden"]
 
+    n_terms = len(PERF_BUCKET_TERMS)
     with perf_app.app_context():
         for batch_start in range(0, TOTAL, BATCH):
             products = []
             for i in range(batch_start, min(batch_start + BATCH, TOTAL)):
+                bucket = i % n_terms
+                term = PERF_BUCKET_TERMS[bucket]
+                desc_term = PERF_BUCKET_TERMS[(bucket + 17) % n_terms]
                 p = Product(
                     sku=f"PERF-{i:06d}",
-                    name=f"Product {i} Widget Alpha",
+                    name=f"PerfItem-{i} {term} catalog",
                     brand=brands[i % len(brands)],
                     category=categories[i % len(categories)],
-                    description=f"Description for performance test product {i}",
+                    description=f"Blurb-{i} {desc_term} segment",
                     price_usd=round(1.0 + (i % 500) * 0.5, 2),
                     sales_volume=i % 10000,
                 )
@@ -82,6 +98,18 @@ def seed_products(perf_app):
         count = Product.query.filter(Product.deleted_at.is_(None)).count()
         assert count >= TOTAL, f"Expected {TOTAL} products, got {count}"
 
+        # Create FTS5 virtual table and populate it (mirrors migration 0005)
+        _db.session.execute(_db.text(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS products_fts "
+            "USING fts5(name, brand, description, content='products', content_rowid='rowid')"
+        ))
+        _db.session.execute(_db.text(
+            "INSERT INTO products_fts(rowid, name, brand, description) "
+            "SELECT rowid, name, COALESCE(brand, ''), COALESCE(description, '') FROM products"
+        ))
+        _db.session.execute(_db.text("PRAGMA cache_size=-200000"))
+        _db.session.commit()
+
 
 # ---------------------------------------------------------------------------
 # Performance test
@@ -90,12 +118,12 @@ def seed_products(perf_app):
 _SEARCH_QUERIES = [
     {"q": "Widget", "page_size": "20"},
     {"q": "Alpha", "brand": "Acme", "page_size": "20"},
-    {"q": "Product", "min_price": "10", "max_price": "100", "page_size": "20"},
-    {"q": "Description", "sort": "price_asc", "page_size": "20"},
-    {"q": "Widget", "sort": "sales_volume", "page_size": "20"},
+    {"q": "Bravo", "min_price": "10", "max_price": "100", "page_size": "20"},
+    {"q": "Charlie", "sort": "price_asc", "page_size": "20"},
+    {"q": "Delta", "sort": "sales_volume", "page_size": "20"},
     {"brand": "Globex", "page_size": "20"},
-    {"q": "performance", "page_size": "20"},
-    {"q": "Product", "sort": "price_desc", "page_size": "20"},
+    {"q": "Echo", "page_size": "20"},
+    {"q": "Foxtrot", "sort": "price_desc", "page_size": "20"},
 ]
 
 _P99_LIMIT_MS = 300

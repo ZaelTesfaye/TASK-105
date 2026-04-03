@@ -240,3 +240,42 @@ def test_list_members_200(client, auth_headers, member_headers):
     assert resp.status_code == 200
     assert isinstance(resp.json, list)
     assert len(resp.json) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Validation: malformed payloads return 400 with structured error
+# ---------------------------------------------------------------------------
+
+def test_create_community_missing_required_fields_400(client, auth_headers):
+    """POST /communities with empty body returns 400 with validation_error and fields."""
+    resp = client.post(f"{BASE}/communities", json={}, headers=auth_headers)
+    assert resp.status_code == 400
+    data = resp.json
+    assert data["error"] == "validation_error"
+    assert "fields" in data
+    # name, address_line1, city, state, zip are required
+    for field in ("name", "address_line1", "city", "state", "zip"):
+        assert field in data["fields"], f"Expected '{field}' in validation fields"
+
+
+def test_create_community_invalid_field_types_400(client, auth_headers):
+    """POST /communities with wrong types returns 400 with validation_error."""
+    resp = client.post(f"{BASE}/communities", json={
+        "name": 12345,  # should be string but marshmallow coerces; use missing required instead
+        "address_line1": "",  # too short
+        "city": "",
+        "state": "X",  # too short
+        "zip": "1",  # too short
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+
+
+def test_update_community_invalid_field_400(client, auth_headers):
+    """PATCH /communities/{id} with invalid state returns 400."""
+    cid = _create_community(client, auth_headers)
+    resp = client.patch(f"{BASE}/communities/{cid}", json={
+        "state": "X",  # too short, must be 2 chars
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"

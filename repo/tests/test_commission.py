@@ -5,6 +5,10 @@ finalization blocked by open disputes, dispute window, resolve/reject flow,
 settlement audit trail.
 """
 import uuid
+from datetime import datetime, timezone, timedelta
+
+from app.extensions import db
+from app.models.commission import SettlementRun
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +264,26 @@ def test_dispute_filed_within_window(client, auth_headers):
                        headers=auth_headers)
     assert resp.status_code == 201
     assert resp.json["status"] == "open"
+
+
+def test_dispute_window_expired_422(client, auth_headers, app):
+    """POST dispute after the 2-day window (from created_at) → 422 dispute_window_expired."""
+    cid = _community(client, auth_headers)
+    sid = _settlement(client, auth_headers, cid).json["settlement_id"]
+
+    with app.app_context():
+        s = db.session.get(SettlementRun, sid)
+        assert s is not None
+        s.created_at = datetime.now(timezone.utc) - timedelta(days=3)
+        db.session.commit()
+
+    resp = client.post(
+        f"/api/v1/settlements/{sid}/disputes",
+        json={"reason": "Too late", "disputed_amount": 1.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert resp.json["error"] == "dispute_window_expired"
 
 
 def test_dispute_invalid_resolution(client, auth_headers):

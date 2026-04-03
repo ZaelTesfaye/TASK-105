@@ -7,7 +7,10 @@ All tests use the Flask test client against /api/v1/communities/{id}/commission-
 and /api/v1/settlements/* endpoints.
 """
 import uuid
-import pytest
+from datetime import datetime, timezone, timedelta
+
+from app.extensions import db
+from app.models.commission import SettlementRun
 
 BASE = "/api/v1"
 
@@ -170,6 +173,24 @@ def test_dispute_within_window_201(client, auth_headers):
     data = resp.json
     assert "dispute_id" in data
     assert data["status"] == "open"
+
+
+def test_dispute_window_expired_422(client, auth_headers, app):
+    """POST dispute after 2-day window → 422 with error=dispute_window_expired."""
+    cid = _create_community(client, auth_headers)
+    sid = _create_settlement(client, auth_headers, cid).json["settlement_id"]
+    with app.app_context():
+        s = db.session.get(SettlementRun, sid)
+        assert s is not None
+        s.created_at = datetime.now(timezone.utc) - timedelta(days=3)
+        db.session.commit()
+
+    resp = client.post(f"{BASE}/settlements/{sid}/disputes", json={
+        "reason": "Past deadline",
+        "disputed_amount": 1.0,
+    }, headers=auth_headers)
+    assert resp.status_code == 422
+    assert resp.json["error"] == "dispute_window_expired"
 
 
 def test_dispute_resolve_200(client, auth_headers):

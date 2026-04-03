@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app.middleware.auth import require_auth
 from app.middleware.rbac import require_roles
 from app.services.catalog_service import CatalogService
+from app.schemas.catalog_schemas import CreateProductSchema, UpdateProductSchema
 
 catalog_bp = Blueprint("catalog", __name__)
 
@@ -10,7 +11,7 @@ catalog_bp = Blueprint("catalog", __name__)
 @require_auth
 @require_roles("Administrator", "Operations Manager")
 def create_product():
-    data = request.get_json(force=True) or {}
+    data = CreateProductSchema().load(request.get_json(force=True) or {})
     product = CatalogService.create_product(data)
     return jsonify(product.to_dict()), 201
 
@@ -26,7 +27,7 @@ def get_product(product_id):
 @require_auth
 @require_roles("Administrator", "Operations Manager")
 def update_product(product_id):
-    data = request.get_json(force=True) or {}
+    data = UpdateProductSchema().load(request.get_json(force=True) or {})
     product = CatalogService.update_product(product_id, data)
     return jsonify(product.to_dict())
 

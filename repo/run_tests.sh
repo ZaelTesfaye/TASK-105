@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # run_tests.sh — One-click test runner for the acceptance suite (required entry point).
+# Mandatory pre-merge gate: exit 0 required before merging (see README.md § Tests).
 # Run from repo/:  bash run_tests.sh
 #
 # - If this Python has pytest (after pip install -r requirements.txt), tests run on the host.

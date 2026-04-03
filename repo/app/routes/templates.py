@@ -49,6 +49,7 @@ def rollback_template(template_id):
 
 @templates_bp.get("/templates/<template_id>/versions")
 @require_auth
+@require_roles(*_MANAGE_ROLES)
 def list_versions(template_id):
     return jsonify(TemplateService.list_versions(template_id))
 

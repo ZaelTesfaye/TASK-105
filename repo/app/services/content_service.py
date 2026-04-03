@@ -73,7 +73,18 @@ class ContentService:
     def get(content_id: str, version: int | None = None, user=None) -> dict:
         item = ContentService._get_or_404(content_id)
         if version is not None:
+            # Enforce the same privilege check for explicit version requests
+            privileged = (
+                user is not None
+                and (
+                    user.role in _PRIVILEGED_CONTENT_ROLES
+                    or str(user.user_id) == str(item.created_by)
+                )
+            )
             v = ContentVersion.query.filter_by(content_id=content_id, version=version).first()
+            # Non-privileged users may only see published versions
+            if v is not None and not privileged and v.status != "published":
+                raise NotFoundError("content_version")
         else:
             # Privileged roles (and the content creator) may read the draft head.
             # Everyone else receives only the latest published version.

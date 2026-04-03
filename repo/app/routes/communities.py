@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, g
 from app.middleware.auth import require_auth
 from app.middleware.rbac import require_roles
 from app.services.community_service import CommunityService
+from app.schemas.community_schemas import CreateCommunitySchema, UpdateCommunitySchema
 
 communities_bp = Blueprint("communities", __name__)
 
@@ -10,7 +11,7 @@ communities_bp = Blueprint("communities", __name__)
 @require_auth
 @require_roles("Administrator", "Operations Manager")
 def create_community():
-    data = request.get_json(force=True) or {}
+    data = CreateCommunitySchema().load(request.get_json(force=True) or {})
     community = CommunityService.create(data)
     return jsonify(community.to_dict()), 201
 
@@ -34,7 +35,7 @@ def get_community(community_id):
 @require_auth
 @require_roles("Administrator", "Operations Manager")
 def update_community(community_id):
-    data = request.get_json(force=True) or {}
+    data = UpdateCommunitySchema().load(request.get_json(force=True) or {})
     community = CommunityService.update(community_id, data)
     return jsonify(community.to_dict())
 

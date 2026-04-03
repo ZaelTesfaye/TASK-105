@@ -129,9 +129,20 @@ class TemplateService:
     def get(template_id: str, version: int | None = None, user: User | None = None) -> dict:
         tmpl = TemplateService._get_or_404(template_id)
         if version is not None:
+            # Enforce the same privilege check for explicit version requests
+            privileged = (
+                user is not None
+                and (
+                    user.role in _PRIVILEGED_TMPL_ROLES
+                    or str(user.user_id) == str(tmpl.created_by)
+                )
+            )
             v = TemplateVersion.query.filter_by(
                 template_id=template_id, version=version
             ).first()
+            # Non-privileged users may only see published versions
+            if v is not None and not privileged and v.status != "published":
+                raise NotFoundError("template_version")
         else:
             privileged = (
                 user is not None

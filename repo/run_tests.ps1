@@ -1,5 +1,6 @@
 # ============================================================
 # run_tests.ps1 — One-click test runner (Windows PowerShell)
+# Mandatory pre-merge gate: exit 0 required before merging (see README.md Tests).
 # Run from the project root:  pwsh run_tests.ps1
 #                         or: powershell -ExecutionPolicy Bypass -File run_tests.ps1
 # ============================================================

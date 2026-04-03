@@ -120,6 +120,21 @@ def test_search_zero_result_guidance(client, auth_headers):
     assert data.get("zero_result_guidance") is not None
 
 
+def test_search_zero_result_fuzzy_brand_guidance(client, auth_headers):
+    """Typo / near-miss query returns closest brand suggestions via fuzzy matching."""
+    suffix = uuid.uuid4().hex[:8]
+    brand = f"FuzzyBrand_{suffix}"
+    typo = f"FuzzyBrnad_{suffix}"  # transposed letters in "Brand"
+    _create_product(client, auth_headers, name="Rare SKU item", brand=brand, sku=f"ZYZ-{uuid.uuid4().hex[:6]}")
+    resp = client.get(f"{BASE}/search/products?q={typo}", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json
+    assert data["total"] == 0
+    g = data.get("zero_result_guidance") or {}
+    brands = g.get("closest_brands") or []
+    assert brand in brands, f"expected fuzzy hit for {brand!r} in {brands!r}"
+
+
 def test_search_autocomplete_200(client, auth_headers):
     """GET /search/autocomplete?q=par returns 200 with suggestions list."""
     resp = client.get(f"{BASE}/search/autocomplete?q=par", headers=auth_headers)
@@ -173,3 +188,41 @@ def test_set_safety_stock_200(client, auth_headers):
         "threshold": 5,
     }, headers=auth_headers)
     assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Validation: malformed payloads return 400 with structured error
+# ---------------------------------------------------------------------------
+
+def test_create_product_missing_required_fields_400(client, auth_headers):
+    """POST /products with empty body returns 400 with validation_error and fields."""
+    resp = client.post(f"{BASE}/products", json={}, headers=auth_headers)
+    assert resp.status_code == 400
+    data = resp.json
+    assert data["error"] == "validation_error"
+    assert "fields" in data
+    for field in ("sku", "name", "brand", "category", "price_usd"):
+        assert field in data["fields"], f"Expected '{field}' in validation fields"
+
+
+def test_create_product_invalid_price_400(client, auth_headers):
+    """POST /products with non-numeric price returns 400 with validation_error."""
+    resp = client.post(f"{BASE}/products", json={
+        "sku": _unique_sku(),
+        "name": "Test",
+        "brand": "B",
+        "category": "C",
+        "price_usd": "not_a_number",
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+
+
+def test_update_product_invalid_price_400(client, auth_headers):
+    """PATCH /products/{id} with negative price returns 400 with validation_error."""
+    product_id = _create_product(client, auth_headers).json["product_id"]
+    resp = client.patch(f"{BASE}/products/{product_id}", json={
+        "price_usd": -10,
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"

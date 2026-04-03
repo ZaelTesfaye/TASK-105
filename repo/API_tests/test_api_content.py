@@ -378,3 +378,79 @@ def test_admin_get_returns_draft_head(client, auth_headers):
     assert resp.status_code == 200
     assert resp.json["version"] == 2
     assert resp.json["body"] == "<p>v2 draft</p>"
+
+
+# ---------------------------------------------------------------------------
+# SECURITY: member cannot read draft versions via explicit ?version= param
+# ---------------------------------------------------------------------------
+
+def test_member_cannot_read_draft_content_via_explicit_version(client, auth_headers, member_headers):
+    """Member GET /content/{id}?version=2 on a draft version returns 404."""
+    content = _create_content(client, auth_headers, body="<p>v1 published</p>")
+    cid = content["content_id"]
+    client.post(f"{BASE}/content/{cid}/publish", headers=auth_headers)
+    client.patch(f"{BASE}/content/{cid}", json={"body": "<p>v2 draft secret</p>"}, headers=auth_headers)
+
+    # Explicit version=2 (draft) should be blocked for member
+    resp = client.get(f"{BASE}/content/{cid}?version=2", headers=member_headers)
+    assert resp.status_code == 404
+
+
+def test_member_can_read_published_content_via_explicit_version(client, auth_headers, member_headers):
+    """Member GET /content/{id}?version=1 on a published version returns 200."""
+    content = _create_content(client, auth_headers, body="<p>v1 published</p>")
+    cid = content["content_id"]
+    client.post(f"{BASE}/content/{cid}/publish", headers=auth_headers)
+
+    resp = client.get(f"{BASE}/content/{cid}?version=1", headers=member_headers)
+    assert resp.status_code == 200
+    assert resp.json["version"] == 1
+
+
+def test_member_cannot_read_draft_template_via_explicit_version(client, auth_headers, member_headers):
+    """Member GET /templates/{id}?version=2 on a draft version returns 404."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    client.post(f"{BASE}/templates/{tid}/publish", headers=auth_headers)
+    client.patch(f"{BASE}/templates/{tid}", json={
+        "fields": [
+            {"name": "color", "type": "text", "required": False},
+            {"name": "size", "type": "text", "required": False},
+        ],
+    }, headers=auth_headers)
+
+    # Explicit version=2 (draft) should be blocked for member
+    resp = client.get(f"{BASE}/templates/{tid}?version=2", headers=member_headers)
+    assert resp.status_code == 404
+
+
+def test_member_can_read_published_template_via_explicit_version(client, auth_headers, member_headers):
+    """Member GET /templates/{id}?version=1 on a published version returns 200."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    client.post(f"{BASE}/templates/{tid}/publish", headers=auth_headers)
+
+    resp = client.get(f"{BASE}/templates/{tid}?version=1", headers=member_headers)
+    assert resp.status_code == 200
+    assert resp.json["version"] == 1
+
+
+# ---------------------------------------------------------------------------
+# SECURITY: /templates/{id}/versions restricted to management roles
+# ---------------------------------------------------------------------------
+
+def test_member_cannot_list_template_versions(client, auth_headers, member_headers):
+    """Member GET /templates/{id}/versions returns 403."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    resp = client.get(f"{BASE}/templates/{tid}/versions", headers=member_headers)
+    assert resp.status_code == 403
+
+
+def test_admin_can_list_template_versions(client, auth_headers):
+    """Admin GET /templates/{id}/versions returns 200."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    resp = client.get(f"{BASE}/templates/{tid}/versions", headers=auth_headers)
+    assert resp.status_code == 200
+    assert isinstance(resp.json, list)

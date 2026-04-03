@@ -4,7 +4,10 @@ Full-text search via SQLite FTS5 (virtual table products_fts created in migratio
 Trending scores are read from TrendingCache (precomputed by background job).
 Search history is capped at 50 entries per user (oldest evicted).
 """
-from sqlalchemy import literal_column
+from difflib import get_close_matches
+
+from flask import current_app
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from app.extensions import db
@@ -12,6 +15,23 @@ from app.models.catalog import Product, ProductAttribute, ProductTag, SearchLog,
 from app.models.user import User
 
 _HISTORY_CAP = 50
+_DISTINCT_BRAND_TAG_CAP = 2000
+
+
+def _fts5_available() -> bool:
+    """One-time probe per Flask app — avoids a redundant round-trip on every search."""
+    app = current_app._get_current_object()
+    slot = app.extensions.setdefault("_search_fts5", {"checked": False, "ok": False})
+    if slot["checked"]:
+        return slot["ok"]
+    try:
+        db.session.execute(db.text("SELECT 1 FROM products_fts LIMIT 0"))
+        slot["ok"] = True
+    except OperationalError:
+        db.session.rollback()
+        slot["ok"] = False
+    slot["checked"] = True
+    return slot["ok"]
 
 
 class SearchService:
@@ -27,20 +47,13 @@ class SearchService:
         # Keyword filter — FTS5 MATCH query; falls back to ILIKE when the
         # products_fts virtual table has not yet been created (pre-migration).
         if q_text:
-            try:
-                fts_rows = db.session.execute(
-                    db.text(
-                        "SELECT rowid FROM products_fts WHERE products_fts MATCH :q LIMIT 10000"
-                    ),
-                    {"q": q_text},
-                ).fetchall()
-                if fts_rows:
-                    rowid_col = literal_column("rowid")
-                    query = query.filter(rowid_col.in_([r[0] for r in fts_rows]))
-                else:
-                    query = query.filter(db.false())
-            except OperationalError:
-                # products_fts table not yet created; fall back to ILIKE
+            if _fts5_available():
+                fts_condition = db.text(
+                    "products.rowid IN "
+                    "(SELECT rowid FROM products_fts WHERE products_fts MATCH :fts_q)"
+                ).bindparams(fts_q=q_text)
+                query = query.filter(fts_condition)
+            else:
                 like = f"%{q_text}%"
                 query = query.filter(
                     db.or_(Product.name.ilike(like), Product.brand.ilike(like),
@@ -98,26 +111,55 @@ class SearchService:
     def _log_search(user: User, query: str, result_count: int) -> None:
         if not query:
             return
-        # Cap at 50 — evict oldest if needed
-        # Note: SearchLog has a column named "query" which shadows Model.query; use db.session.query() instead
-        sl_q = db.session.query(SearchLog).filter(SearchLog.user_id == user.user_id)
-        count = sl_q.count()
-        if count >= _HISTORY_CAP:
-            oldest = sl_q.order_by(SearchLog.searched_at.asc()).first()
-            if oldest:
-                db.session.delete(oldest)
+        # Cap at 50 — single DELETE when at capacity (faster than count + ORM fetch)
+        uid = str(user.user_id)
+        db.session.execute(
+            text(
+                """
+                DELETE FROM search_logs WHERE log_id IN (
+                    SELECT log_id FROM search_logs WHERE user_id = :uid
+                    ORDER BY searched_at ASC LIMIT 1
+                ) AND (SELECT COUNT(*) FROM search_logs WHERE user_id = :uid) >= :cap
+                """
+            ),
+            {"uid": uid, "cap": _HISTORY_CAP},
+        )
         log = SearchLog(user_id=user.user_id, query=query, result_count=result_count)
         db.session.add(log)
         db.session.commit()
 
     @staticmethod
+    def _fuzzy_pick(query: str, choices: list[str], n: int = 3) -> list[str]:
+        """Rank known strings by fuzzy similarity (typos, near-miss spellings)."""
+        if not query or not choices:
+            return []
+        q = query.strip().lower()
+        canon = {}
+        for c in choices:
+            key = c.lower()
+            if key not in canon:
+                canon[key] = c
+        pool = list(canon.keys())
+        # cutoff ~0.45 catches single-char typos on medium-length tokens
+        picks = get_close_matches(q, pool, n=n, cutoff=0.45)
+        return [canon[p] for p in picks]
+
+    @staticmethod
     def _zero_result_guidance(query: str) -> dict:
-        # Scaffold: simple prefix/contains match; full trigram similarity in implementation phase
-        like = f"%{query}%"
-        brands = [r[0] for r in db.session.query(Product.brand)
-                  .filter(Product.brand.ilike(like)).distinct().limit(3).all()]
-        tags = [r[0] for r in db.session.query(ProductTag.tag)
-                .filter(ProductTag.tag.ilike(like)).distinct().limit(3).all()]
+        brands_raw = [
+            r[0]
+            for r in db.session.query(Product.brand)
+            .filter(Product.deleted_at.is_(None))
+            .distinct()
+            .limit(_DISTINCT_BRAND_TAG_CAP)
+            .all()
+        ]
+        tags_raw = [
+            r[0]
+            for r in db.session.query(ProductTag.tag).distinct().limit(_DISTINCT_BRAND_TAG_CAP).all()
+        ]
+        brands = SearchService._fuzzy_pick(query, brands_raw, n=3)
+        tags = SearchService._fuzzy_pick(query, tags_raw, n=3)
         return {"closest_brands": brands, "closest_tags": tags}
 
     @staticmethod
