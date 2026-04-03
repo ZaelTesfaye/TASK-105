@@ -20,6 +20,9 @@ _ALLOWED_TAGS = [
 ]
 _ALLOWED_ATTRS = {"a": ["href"], "img": ["src", "alt"]}
 
+# Roles that may see draft (current_version) content; others see latest published only
+_PRIVILEGED_CONTENT_ROLES = {"Administrator", "Operations Manager", "Moderator"}
+
 
 def _sanitize(body: str) -> str:
     return bleach.clean(body, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True)
@@ -67,12 +70,31 @@ class ContentService:
         return result
 
     @staticmethod
-    def get(content_id: str, version: int | None = None) -> dict:
+    def get(content_id: str, version: int | None = None, user=None) -> dict:
         item = ContentService._get_or_404(content_id)
-        if version:
+        if version is not None:
             v = ContentVersion.query.filter_by(content_id=content_id, version=version).first()
         else:
-            v = ContentVersion.query.filter_by(content_id=content_id, version=item.current_version).first()
+            # Privileged roles (and the content creator) may read the draft head.
+            # Everyone else receives only the latest published version.
+            privileged = (
+                user is not None
+                and (
+                    user.role in _PRIVILEGED_CONTENT_ROLES
+                    or str(user.user_id) == str(item.created_by)
+                )
+            )
+            if privileged:
+                v = ContentVersion.query.filter_by(
+                    content_id=content_id, version=item.current_version
+                ).first()
+            else:
+                v = (
+                    ContentVersion.query
+                    .filter_by(content_id=content_id, status="published")
+                    .order_by(ContentVersion.version.desc())
+                    .first()
+                )
         if v is None:
             raise NotFoundError("content_version")
         result = item.to_dict()

@@ -2,18 +2,31 @@ from flask import Blueprint, request, jsonify, g
 from app.middleware.auth import require_auth
 from app.middleware.rbac import require_roles
 from app.services.inventory_service import InventoryService
+from app.schemas.inventory_schemas import (
+    CreateWarehouseSchema, CreateBinSchema,
+    ReceiptSchema, IssueSchema, TransferSchema,
+    AdjustmentSchema, CycleCountSchema,
+)
 
 inventory_bp = Blueprint("inventory", __name__)
 
 _STAFF_ROLES = ("Administrator", "Operations Manager", "Staff")
 _MANAGER_ROLES = ("Administrator", "Operations Manager")
 
+_warehouse_schema = CreateWarehouseSchema()
+_bin_schema = CreateBinSchema()
+_receipt_schema = ReceiptSchema()
+_issue_schema = IssueSchema()
+_transfer_schema = TransferSchema()
+_adjustment_schema = AdjustmentSchema()
+_cycle_count_schema = CycleCountSchema()
+
 
 @inventory_bp.post("/warehouses")
 @require_auth
 @require_roles(*_MANAGER_ROLES)
 def create_warehouse():
-    data = request.get_json(force=True) or {}
+    data = _warehouse_schema.load(request.get_json(force=True) or {})
     wh = InventoryService.create_warehouse(data)
     return jsonify(wh.to_dict()), 201
 
@@ -29,7 +42,7 @@ def list_warehouses():
 @require_auth
 @require_roles(*_MANAGER_ROLES)
 def create_bin(warehouse_id):
-    data = request.get_json(force=True) or {}
+    data = _bin_schema.load(request.get_json(force=True) or {})
     b = InventoryService.create_bin(warehouse_id, data)
     return jsonify(b.to_dict()), 201
 
@@ -45,7 +58,7 @@ def list_bins(warehouse_id):
 @require_auth
 @require_roles(*_STAFF_ROLES)
 def create_receipt():
-    data = request.get_json(force=True) or {}
+    data = _receipt_schema.load(request.get_json(force=True) or {})
     txn = InventoryService.record_receipt(data, actor=g.current_user)
     return jsonify(txn.to_dict()), 201
 
@@ -54,7 +67,7 @@ def create_receipt():
 @require_auth
 @require_roles(*_STAFF_ROLES)
 def create_issue():
-    data = request.get_json(force=True) or {}
+    data = _issue_schema.load(request.get_json(force=True) or {})
     txn = InventoryService.record_issue(data, actor=g.current_user)
     return jsonify(txn.to_dict()), 201
 
@@ -63,7 +76,7 @@ def create_issue():
 @require_auth
 @require_roles(*_STAFF_ROLES)
 def create_transfer():
-    data = request.get_json(force=True) or {}
+    data = _transfer_schema.load(request.get_json(force=True) or {})
     txns = InventoryService.record_transfer(data, actor=g.current_user)
     return jsonify([t.to_dict() for t in txns]), 201
 
@@ -72,7 +85,7 @@ def create_transfer():
 @require_auth
 @require_roles(*_MANAGER_ROLES)
 def create_adjustment():
-    data = request.get_json(force=True) or {}
+    data = _adjustment_schema.load(request.get_json(force=True) or {})
     result = InventoryService.record_adjustment(data, actor=g.current_user)
     return jsonify(result), 201
 
@@ -81,7 +94,7 @@ def create_adjustment():
 @require_auth
 @require_roles(*_STAFF_ROLES)
 def create_cycle_count():
-    data = request.get_json(force=True) or {}
+    data = _cycle_count_schema.load(request.get_json(force=True) or {})
     result = InventoryService.record_cycle_count(data, actor=g.current_user)
     return jsonify(result), 201
 

@@ -1,7 +1,8 @@
 """
 Commission rules, settlement, and dispute tests.
 Covers: rate-bounds validation, commission precedence, idempotent settlement,
-finalization blocked by open disputes, dispute window, resolve/reject flow.
+finalization blocked by open disputes, dispute window, resolve/reject flow,
+settlement audit trail.
 """
 import uuid
 
@@ -29,13 +30,14 @@ def _rule(client, headers, community_id, **kwargs):
                        json=payload, headers=headers)
 
 
-def _settlement(client, headers, community_id, key=None):
+def _settlement(client, headers, community_id, key=None,
+                 period_start="2026-01-05", period_end="2026-01-11"):
     if key is None:
         key = uuid.uuid4().hex
     return client.post("/api/v1/settlements", json={
         "community_id": community_id,
-        "period_start": "2026-01-01",
-        "period_end": "2026-01-07",
+        "period_start": period_start,
+        "period_end": period_end,
         "idempotency_key": key,
     }, headers=headers)
 
@@ -294,24 +296,155 @@ def test_dispute_rejected(client, auth_headers):
 
 def test_group_leader_cannot_create_rule(client):
     import uuid as _uuid
-    username = f"gl_{_uuid.uuid4().hex[:8]}"
-    client.post("/api/v1/auth/register", json={
-        "username": username, "password": "ValidPass1234!", "role": "Group Leader",
-    })
+    # Register via AuthService — public HTTP endpoint locks role to Member
+    gl_name = f"gl_{_uuid.uuid4().hex[:8]}"
+    adm_name = f"adm_{_uuid.uuid4().hex[:6]}"
+    with client.application.app_context():
+        from app.services.auth_service import AuthService
+        AuthService.register(gl_name, "ValidPass1234!", role="Group Leader")
+        AuthService.register(adm_name, "AdminPass1234!", role="Administrator")
+
     token = client.post("/api/v1/auth/login", json={
-        "username": username, "password": "ValidPass1234!",
+        "username": gl_name, "password": "ValidPass1234!",
     }).json["token"]
     gl_headers = {"Authorization": f"Bearer {token}"}
 
-    # Need admin to create community
-    admin_resp = client.post("/api/v1/auth/register", json={
-        "username": f"adm_{_uuid.uuid4().hex[:6]}", "password": "AdminPass1234!", "role": "Administrator",
-    })
     adm_token = client.post("/api/v1/auth/login", json={
-        "username": admin_resp.json["username"], "password": "AdminPass1234!",
+        "username": adm_name, "password": "AdminPass1234!",
     }).json["token"]
     adm_headers = {"Authorization": f"Bearer {adm_token}"}
-    cid = _community(client, adm_headers)
 
+    cid = _community(client, adm_headers)
     resp = _rule(client, gl_headers, cid)
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Settlement audit trail
+# ---------------------------------------------------------------------------
+
+def test_create_settlement_writes_audit_log(client, auth_headers):
+    """create_settlement must append an AuditLog row with action_type='settlement'."""
+    from app.models.audit import AuditLog
+    cid = _community(client, auth_headers)
+    resp = _settlement(client, auth_headers, cid)
+    assert resp.status_code == 201
+    sid = resp.json["settlement_id"]
+    with client.application.app_context():
+        log = AuditLog.query.filter_by(
+            action_type="settlement", target_type="settlement_run", target_id=sid
+        ).first()
+        assert log is not None, "AuditLog row missing for create_settlement"
+        import json
+        after = json.loads(log.after_state)
+        assert after["status"] == "pending"
+
+
+def test_file_dispute_writes_audit_log(client, auth_headers):
+    """file_dispute must append an AuditLog row with action_type='settlement'."""
+    from app.models.audit import AuditLog
+    cid = _community(client, auth_headers)
+    sid = _settlement(client, auth_headers, cid).json["settlement_id"]
+    dispute_resp = client.post(
+        f"/api/v1/settlements/{sid}/disputes",
+        json={"reason": "Audit test", "disputed_amount": 10.0},
+        headers=auth_headers,
+    )
+    assert dispute_resp.status_code == 201
+    did = dispute_resp.json["dispute_id"]
+    with client.application.app_context():
+        log = AuditLog.query.filter_by(
+            action_type="settlement", target_type="settlement_dispute", target_id=did
+        ).first()
+        assert log is not None, "AuditLog row missing for file_dispute"
+
+
+def test_resolve_dispute_writes_audit_log(client, auth_headers):
+    """resolve_dispute must append an AuditLog row with action_type='settlement'."""
+    import json
+    from app.models.audit import AuditLog
+    cid = _community(client, auth_headers)
+    sid = _settlement(client, auth_headers, cid).json["settlement_id"]
+    did = client.post(
+        f"/api/v1/settlements/{sid}/disputes",
+        json={"reason": "Audit test", "disputed_amount": 5.0},
+        headers=auth_headers,
+    ).json["dispute_id"]
+    client.patch(
+        f"/api/v1/settlements/{sid}/disputes/{did}",
+        json={"resolution": "resolved", "notes": "OK"},
+        headers=auth_headers,
+    )
+    with client.application.app_context():
+        logs = AuditLog.query.filter_by(
+            action_type="settlement", target_type="settlement_dispute", target_id=did
+        ).all()
+        # Two rows expected: file + resolve
+        assert len(logs) == 2, f"Expected 2 audit rows for dispute {did}, got {len(logs)}"
+        resolutions = [json.loads(l.after_state)["status"] for l in logs
+                       if l.after_state and "status" in json.loads(l.after_state)]
+        assert "resolved" in resolutions
+
+
+def test_finalize_writes_audit_log(client, auth_headers):
+    """finalize must append an AuditLog row with action_type='settlement' and status=completed."""
+    from app.models.audit import AuditLog
+    import json
+    cid = _community(client, auth_headers)
+    sid = _settlement(client, auth_headers, cid).json["settlement_id"]
+    client.post(f"/api/v1/settlements/{sid}/finalize", headers=auth_headers)
+    with client.application.app_context():
+        logs = AuditLog.query.filter_by(
+            action_type="settlement", target_type="settlement_run", target_id=sid
+        ).all()
+        assert len(logs) == 2, f"Expected 2 audit rows (create+finalize) for {sid}"
+        statuses = [json.loads(l.after_state)["status"] for l in logs
+                    if l.after_state and "status" in json.loads(l.after_state)]
+        assert "completed" in statuses
+
+
+# ---------------------------------------------------------------------------
+# Settlement cycle enforcement (Fix 3)
+# ---------------------------------------------------------------------------
+
+def test_settlement_wrong_duration_rejected(client, auth_headers):
+    """Settlement period that doesn't match cycle duration is rejected."""
+    cid = _community(client, auth_headers)
+    _rule(client, auth_headers, cid, settlement_cycle="weekly")
+    # 10 days instead of 7
+    resp = _settlement(client, auth_headers, cid,
+                       period_start="2026-01-05", period_end="2026-01-14")
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid_settlement_period"
+
+
+def test_settlement_biweekly_cycle_enforced(client, auth_headers):
+    """Biweekly rule requires exactly 14-day period."""
+    cid = _community(client, auth_headers)
+    _rule(client, auth_headers, cid, settlement_cycle="biweekly")
+    # 7 days (weekly) → rejected for biweekly
+    resp = _settlement(client, auth_headers, cid,
+                       period_start="2026-01-05", period_end="2026-01-11")
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid_settlement_period"
+
+
+def test_settlement_biweekly_correct_period(client, auth_headers):
+    """Biweekly settlement with correct 14-day period succeeds."""
+    cid = _community(client, auth_headers)
+    _rule(client, auth_headers, cid, settlement_cycle="biweekly")
+    # Monday to Sunday, 14 days inclusive
+    resp = _settlement(client, auth_headers, cid,
+                       period_start="2026-01-05", period_end="2026-01-18")
+    assert resp.status_code == 201
+
+
+def test_settlement_must_start_on_monday(client, auth_headers):
+    """Settlement period must start on a Monday."""
+    cid = _community(client, auth_headers)
+    _rule(client, auth_headers, cid, settlement_cycle="weekly")
+    # Wednesday to Tuesday (7 days, but wrong alignment)
+    resp = _settlement(client, auth_headers, cid,
+                       period_start="2026-01-07", period_end="2026-01-13")
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid_settlement_period"

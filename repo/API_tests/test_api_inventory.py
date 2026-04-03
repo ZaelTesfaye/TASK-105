@@ -140,6 +140,28 @@ def test_receipt_201(client, auth_headers):
     assert data["quantity_delta"] == 20
 
 
+def test_receipt_persists_barcode_serials(client, auth_headers):
+    """Receipt accepts barcode / rfid / serial_numbers and returns them on the transaction."""
+    sku_id = _create_product(client, auth_headers)
+    wh_id = _create_warehouse(client, auth_headers)
+    resp = client.post(f"{BASE}/inventory/receipts", json={
+        "sku_id": sku_id,
+        "warehouse_id": wh_id,
+        "quantity": 3,
+        "unit_cost_usd": 1.0,
+        "costing_method": "fifo",
+        "occurred_at": "2026-01-01T10:00:00",
+        "barcode": "BAR-001",
+        "rfid": "A1B2C3D4E5F6",
+        "serial_numbers": ["SN-1", "SN-2"],
+    }, headers=auth_headers)
+    assert resp.status_code == 201
+    d = resp.json
+    assert d["barcode"] == "BAR-001"
+    assert d["rfid"] == "A1B2C3D4E5F6"
+    assert d["serial_numbers"] == ["SN-1", "SN-2"]
+
+
 def test_issue_201(client, auth_headers):
     """After receipt, POST /inventory/issues returns 201 with type=issue and on_hand decreases."""
     sku_id = _create_product(client, auth_headers)

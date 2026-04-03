@@ -8,7 +8,7 @@ from sqlalchemy import literal_column
 from sqlalchemy.exc import OperationalError
 
 from app.extensions import db
-from app.models.catalog import Product, ProductTag, SearchLog, TrendingCache
+from app.models.catalog import Product, ProductAttribute, ProductTag, SearchLog, TrendingCache
 from app.models.user import User
 
 _HISTORY_CAP = 50
@@ -58,6 +58,14 @@ class SearchService:
             query = query.join(
                 ProductTag, Product.product_id == ProductTag.product_id
             ).filter(ProductTag.tag.in_(tag_list))
+
+        # Attribute filters: attributes={key: value, ...}
+        if params.get("attributes"):
+            for attr_key, attr_value in params["attributes"].items():
+                attr_alias = db.aliased(ProductAttribute)
+                query = query.join(
+                    attr_alias, Product.product_id == attr_alias.product_id
+                ).filter(attr_alias.key == attr_key, attr_alias.value == attr_value)
 
         sort = params.get("sort", "new_arrivals")
         sort_map = {

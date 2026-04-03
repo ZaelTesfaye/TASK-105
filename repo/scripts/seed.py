@@ -5,7 +5,9 @@ Usage:
     cd repo/
     python scripts/seed.py
 
-Idempotent: running twice is safe (duplicate registrations are silently skipped).
+Idempotent: running twice is safe (ConflictError on duplicate registration is caught).
+Users are created via AuthService.register() inside app_context so privileged
+roles (Administrator, Group Leader, etc.) are stored correctly.
 """
 import sys
 import os
@@ -38,26 +40,57 @@ def seed():
     # Schema is owned by Alembic migrations only — never db.create_all() here,
     # or Docker restarts can end up with tables but no alembic_version row.
 
+    from app.services.auth_service import AuthService
+    from app.errors import ConflictError
+    from app.models.user import User
+
+    users_spec = [
+        ("admin",       "AdminPass1234!",  "Administrator"),
+        ("opsmanager",  "OpsPass1234!",    "Operations Manager"),
+        ("moderator",   "ModPass1234!",    "Moderator"),
+        ("gl_alice",    "AlicePass1234!",  "Group Leader"),
+        ("member_bob",  "BobPass1234!",    "Member"),
+    ]
+
+    with app.app_context():
+        # ----------------------------------------------------------------
+        # 1. Users — use AuthService directly so role is stored correctly
+        # ----------------------------------------------------------------
+        for username, password, role in users_spec:
+            try:
+                AuthService.register(username, password, role=role)
+                print(f"  registered  {username:20s}  ({role})")
+            except ConflictError:
+                print(f"  exists      {username:20s}  (skipped)")
+
+        # Fetch gl_alice's user_id from DB — no re-register needed
+        gl_alice = User.query.filter_by(username="gl_alice").first()
+        if gl_alice is None:
+            print("ERROR: gl_alice not found in DB after registration", file=sys.stderr)
+            sys.exit(1)
+        gl_alice_id = str(gl_alice.user_id)
+
+    # ----------------------------------------------------------------
+    # HTTP calls (community, products, inventory, content, template)
+    # ----------------------------------------------------------------
+    def _login(client, username, password):
+        resp = _post(client, "/api/v1/auth/login",
+                     json={"username": username, "password": password})
+        token = resp.json.get("token", "")
+        if not token:
+            print(f"ERROR: login failed for {username}: {resp.status_code} {resp.json}",
+                  file=sys.stderr)
+            sys.exit(1)
+        return token
+
     with app.test_client() as client:
-        # ----------------------------------------------------------------
-        # 1. Users
-        # ----------------------------------------------------------------
-        users = [
-            {"username": "admin",     "password": "AdminPass1234!",   "role": "Administrator"},
-            {"username": "opsmanager", "password": "OpsPass1234!",    "role": "Operations Manager"},
-            {"username": "moderator", "password": "ModPass1234!",     "role": "Moderator"},
-            {"username": "gl_alice",  "password": "AlicePass1234!",   "role": "Group Leader"},
-            {"username": "member_bob", "password": "BobPass1234!",    "role": "Member"},
-        ]
         tokens = {}
-        for u in users:
-            _post(client, "/api/v1/auth/register", json=u)  # 409 on re-run is safe
-            resp = _post(client, "/api/v1/auth/login",
-                         json={"username": u["username"], "password": u["password"]})
-            tokens[u["username"]] = resp.json.get("token", "")
-            print(f"  user  {u['username']:20s}  token={tokens[u['username']][:16]}…")
+        for username, password, _ in users_spec:
+            tokens[username] = _login(client, username, password)
+            print(f"  login  {username:20s}  token={tokens[username][:16]}…")
 
         admin_h = {"Authorization": f"Bearer {tokens['admin']}"}
+        seeded_community_id = None
 
         # ----------------------------------------------------------------
         # 2. Community
@@ -71,6 +104,7 @@ def seed():
         }, headers=admin_h)
         if comm_resp.status_code == 201:
             community_id = comm_resp.json["community_id"]
+            seeded_community_id = community_id
             print(f"  community  {community_id}")
 
             # Service area
@@ -80,22 +114,24 @@ def seed():
                 "city": "Austin", "state": "TX", "zip": "78701",
             }, headers=admin_h)
 
-            # Bind group leader
-            gl_resp = _post(client, "/api/v1/auth/login",
-                            json={"username": "gl_alice", "password": "AlicePass1234!"})
-            gl_token = gl_resp.json.get("token", "")
-            # Get gl user_id by registering again to extract it
-            reg = _post(client, "/api/v1/auth/register",
-                        json={"username": "gl_alice", "password": "AlicePass1234!", "role": "Group Leader"})
-            gl_uid = reg.json.get("user_id") if reg.status_code == 201 else None
-            if gl_uid:
-                _post(client, f"/api/v1/communities/{community_id}/leader-binding",
-                      json={"user_id": gl_uid}, headers=admin_h)
+            # Bind group leader using user_id fetched from DB
+            bind_resp = _post(
+                client, f"/api/v1/communities/{community_id}/leader-binding",
+                json={"user_id": gl_alice_id}, headers=admin_h,
+            )
+            if bind_resp.status_code not in (201, 409):
+                print(f"ERROR: leader-binding failed: {bind_resp.status_code} {bind_resp.json}",
+                      file=sys.stderr)
+                sys.exit(1)
 
             # Commission rule
             _post(client, f"/api/v1/communities/{community_id}/commission-rules", json={
                 "rate": 8.0, "floor": 2.0, "ceiling": 12.0, "settlement_cycle": "weekly",
             }, headers=admin_h)
+        elif comm_resp.status_code != 409:
+            print(f"ERROR: community creation failed: {comm_resp.status_code} {comm_resp.json}",
+                  file=sys.stderr)
+            sys.exit(1)
 
         # ----------------------------------------------------------------
         # 3. Products
@@ -119,16 +155,17 @@ def seed():
         # ----------------------------------------------------------------
         # 4. Warehouse + inventory
         # ----------------------------------------------------------------
-        wh_resp = _post(client, "/api/v1/warehouses",
-                        json={"name": "Austin Main", "location": "Austin, TX"},
-                        headers=admin_h)
+        wh_payload = {"name": "Austin Main", "location": "Austin, TX"}
+        if seeded_community_id:
+            wh_payload["community_id"] = seeded_community_id
+        wh_resp = _post(client, "/api/v1/warehouses", json=wh_payload, headers=admin_h)
         if wh_resp.status_code == 201:
             wh_id = wh_resp.json["warehouse_id"]
             print(f"  warehouse  {wh_id[:8]}…")
 
-            bin_resp = _post(client, f"/api/v1/warehouses/{wh_id}/bins",
-                             json={"bin_code": "A-01", "description": "Aisle 1"},
-                             headers=admin_h)
+            _post(client, f"/api/v1/warehouses/{wh_id}/bins",
+                  json={"bin_code": "A-01", "description": "Aisle 1"},
+                  headers=admin_h)
 
             for sku, pid in product_ids.items():
                 _post(client, "/api/v1/inventory/receipts", json={

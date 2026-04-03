@@ -197,7 +197,10 @@ class TestWsGroup:
             comm_id = str(comm.community_id)
 
             from app.models.user import User
+            admin_obj = _db.session.get(User, uid_admin)
             member_obj = _db.session.get(User, uid_member)
+            # Both sender and recipient must be active community members
+            CommunityService.join_community(comm_id, admin_obj)
             CommunityService.join_community(comm_id, member_obj)
 
             ws_admin = _connect(app, tok_admin)

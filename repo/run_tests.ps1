@@ -78,6 +78,20 @@ try {
 }
 if ($LASTEXITCODE -ne 0) { $apiResult = $LASTEXITCODE }
 
+# --- Integration / job tests ---
+Write-Host ""
+Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
+Write-Host "  PHASE 3 - Integration/Job Tests  (tests/)"             -ForegroundColor Cyan
+Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
+
+$jobsResult = 0
+try {
+    python -m pytest tests/ -v --tb=short --no-header -q
+} catch {
+    $jobsResult = $LASTEXITCODE
+}
+if ($LASTEXITCODE -ne 0) { $jobsResult = $LASTEXITCODE }
+
 # --- Aggregate summary ---
 Write-Host ""
 Write-Host "========================================================" -ForegroundColor Cyan
@@ -85,16 +99,17 @@ Write-Host "  SUMMARY"                                                 -Foregrou
 Write-Host "========================================================" -ForegroundColor Cyan
 $oldEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-python -m pytest unit_tests/ API_tests/ --tb=no -q 2>&1 | Select-Object -Last 5 | Write-Host
+python -m pytest unit_tests/ API_tests/ tests/ --tb=no -q 2>&1 | Select-Object -Last 5 | Write-Host
 $ErrorActionPreference = $oldEap
 
 Write-Host ""
-if ($unitResult -eq 0 -and $apiResult -eq 0) {
+if ($unitResult -eq 0 -and $apiResult -eq 0 -and $jobsResult -eq 0) {
     Write-Ok "All tests passed."
     exit 0
 } else {
     Write-Fail "One or more tests failed."
     if ($unitResult  -ne 0) { Write-Fail "  Unit tests:         FAILED (exit $unitResult)" }
     if ($apiResult   -ne 0) { Write-Fail "  API tests:          FAILED (exit $apiResult)" }
+    if ($jobsResult  -ne 0) { Write-Fail "  Integration tests:  FAILED (exit $jobsResult)" }
     exit 1
 }

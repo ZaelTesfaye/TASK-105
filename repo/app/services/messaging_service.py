@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from app.extensions import db
 from app.models.messaging import Message, MessageReceipt, MESSAGE_TYPES, RECEIPT_STATUS_ORDER
 from app.models.user import User
-from app.errors import NotFoundError, AppError, ConflictError
+from app.errors import NotFoundError, AppError, ConflictError, ForbiddenError
 
 _OFFLINE_TTL_DAYS = 7
 
@@ -49,7 +49,17 @@ class MessagingService:
                 status="sent",
             ))
         elif group_id:
+            from app.models.community import CommunityMember
             from app.services.community_service import CommunityService
+            # Sender must be an active member of the community
+            membership = CommunityMember.query.filter_by(
+                community_id=group_id, user_id=sender.user_id, left_at=None
+            ).first()
+            if membership is None:
+                raise ForbiddenError(
+                    "not_community_member",
+                    "You must be an active member of this community to send group messages",
+                )
             member_ids = CommunityService.get_active_member_ids(group_id)
             for mid in member_ids:
                 if mid != str(sender.user_id):

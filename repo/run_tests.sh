@@ -97,23 +97,37 @@ python -m pytest API_tests/ \
     -q \
     2>&1 || API_RESULT=$?
 
+# ── Run integration / job tests ──────────────────────────────────────────────
+echo ""
+echo "--------------------------------------------------------"
+echo "  PHASE 3 — Integration/Job Tests  (tests/)"
+echo "--------------------------------------------------------"
+JOBS_RESULT=0
+python -m pytest tests/ \
+    -v \
+    --tb=short \
+    --no-header \
+    -q \
+    2>&1 || JOBS_RESULT=$?
+
 # ── Aggregate summary ────────────────────────────────────────
 echo ""
 echo "========================================================"
 echo "  SUMMARY"
 echo "========================================================"
-python -m pytest unit_tests/ API_tests/ \
+python -m pytest unit_tests/ API_tests/ tests/ \
     --tb=no \
     -q \
     2>&1 | tail -5
 
 echo ""
-if [ "$UNIT_RESULT" -eq 0 ] && [ "$API_RESULT" -eq 0 ]; then
+if [ "$UNIT_RESULT" -eq 0 ] && [ "$API_RESULT" -eq 0 ] && [ "$JOBS_RESULT" -eq 0 ]; then
     ok "All tests passed."
     exit 0
 else
     fail "One or more tests failed."
     [ "$UNIT_RESULT"  -ne 0 ] && fail "  Unit tests:         FAILED (exit $UNIT_RESULT)"
     [ "$API_RESULT"   -ne 0 ] && fail "  API tests:          FAILED (exit $API_RESULT)"
+    [ "$JOBS_RESULT"  -ne 0 ] && fail "  Integration tests:  FAILED (exit $JOBS_RESULT)"
     exit 1
 fi

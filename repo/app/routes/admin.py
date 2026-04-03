@@ -57,6 +57,7 @@ def update_ticket(ticket_id):
 
 @admin_bp.get("/admin/reports/group-leader-performance")
 @require_auth
+@require_roles("Administrator", "Operations Manager", "Group Leader")
 def group_leader_performance():
     params = {
         "community_id": request.args.get("community_id"),

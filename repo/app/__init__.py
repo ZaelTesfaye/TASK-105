@@ -52,6 +52,10 @@ def create_app(config_name: str | None = None) -> Flask:
     # --- Error handlers ---
     register_error_handlers(app)
 
+    # --- STOMP WebSocket endpoint ---
+    from .stomp_ws import register_stomp
+    register_stomp(app)
+
     # --- Background jobs ---
     if app.config.get("JOBS_ENABLED"):
         with app.app_context():

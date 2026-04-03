@@ -188,7 +188,8 @@ def test_receipt_not_found_404(client, auth_headers):
 def test_group_message_201(client, auth_headers, member_headers):
     """POST /messages with group_id after joining community returns 201."""
     community_id = _create_community(client, auth_headers)
-    # Member joins the community
+    # Both sender (admin) and member must join; sender membership is enforced
+    client.post(f"{BASE}/communities/{community_id}/members", headers=auth_headers)
     client.post(f"{BASE}/communities/{community_id}/members", headers=member_headers)
     resp = client.post(f"{BASE}/messages", json={
         "type": "text",
@@ -196,3 +197,15 @@ def test_group_message_201(client, auth_headers, member_headers):
         "body": "Group hello",
     }, headers=auth_headers)
     assert resp.status_code == 201
+
+
+def test_group_message_non_member_403(client, auth_headers):
+    """Sending a group message without being a community member returns 403."""
+    community_id = _create_community(client, auth_headers)
+    # Sender does NOT join the community
+    resp = client.post(f"{BASE}/messages", json={
+        "type": "text",
+        "group_id": community_id,
+        "body": "Non-member attempt",
+    }, headers=auth_headers)
+    assert resp.status_code == 403

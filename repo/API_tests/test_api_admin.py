@@ -170,15 +170,13 @@ def test_report_unauthenticated_401(client):
     assert resp.status_code == 401
 
 
-def test_report_authenticated_member_200(client, member_headers):
-    """Authenticated Member can call the report endpoint (no role restriction at route level)."""
+def test_report_member_403(client, member_headers):
+    """Authenticated Member GET /admin/reports/group-leader-performance returns 403."""
     resp = client.get(
         f"{BASE}/admin/reports/group-leader-performance",
         headers=member_headers,
     )
-    assert resp.status_code == 200
-    data = resp.json
-    assert "total_orders" in data
+    assert resp.status_code == 403
 
 
 def test_report_group_leader_own_community_200(client, auth_headers):

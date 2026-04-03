@@ -3,12 +3,14 @@ Inventory service.
 All write paths (receipt/issue/transfer/adjustment) run inside an explicit
 db.session transaction. Costing method is locked after first transaction per lot.
 """
+import json
+import re
 from datetime import datetime, timezone
 
 from app.extensions import db
 from app.models.inventory import (
     Warehouse, Bin, InventoryLot, InventoryTransaction,
-    CostLayer, AvgCostSnapshot, CycleCount, CycleCountLine,
+    CostLayer, AvgCostSnapshot, CycleCount, CycleCountLine, SkuCostingPolicy,
 )
 from app.models.user import User
 from app.models.audit import AuditLog
@@ -18,6 +20,61 @@ from flask import g
 
 def _cid() -> str:
     return getattr(g, "correlation_id", "n/a")
+
+
+# Barcode: alphanumeric, hyphens, 1-128 chars (covers UPC, EAN, Code128)
+_BARCODE_RE = re.compile(r'^[A-Za-z0-9\-]{1,128}$')
+# RFID: hex string, 1-128 chars (EPC tag format)
+_RFID_RE = re.compile(r'^[A-Fa-f0-9]{1,128}$')
+
+
+def _validate_barcode(value: str | None) -> None:
+    """Validate barcode format if provided."""
+    if value is None:
+        return
+    value = str(value)
+    if not _BARCODE_RE.match(value):
+        raise AppError(
+            "invalid_barcode_format",
+            "Barcode must be 1-128 alphanumeric characters or hyphens",
+            field="barcode",
+            status_code=400,
+        )
+
+
+def _validate_rfid(value: str | None) -> None:
+    """Validate RFID format if provided."""
+    if value is None:
+        return
+    value = str(value)
+    if not _RFID_RE.match(value):
+        raise AppError(
+            "invalid_rfid_format",
+            "RFID must be 1-128 hexadecimal characters",
+            field="rfid",
+            status_code=400,
+        )
+
+
+def _serialize_serial_numbers(val) -> str | None:
+    """Normalize API serial_numbers (list or JSON string) to stored JSON array text."""
+    if val is None:
+        return None
+    if isinstance(val, list):
+        return json.dumps([str(x) for x in val])
+    if isinstance(val, str):
+        s = val.strip()
+        if not s:
+            return None
+        try:
+            parsed = json.loads(s)
+        except json.JSONDecodeError:
+            return json.dumps([s])
+        if isinstance(parsed, list):
+            return json.dumps([str(x) for x in parsed])
+        return json.dumps([str(parsed)])
+    raise AppError("invalid_serial_numbers", "serial_numbers must be a list or JSON string",
+                   field="serial_numbers", status_code=400)
 
 
 def _consume_fifo_layers(sku_id, warehouse_id, qty: int) -> None:
@@ -70,7 +127,16 @@ class InventoryService:
 
     @staticmethod
     def create_warehouse(data: dict) -> Warehouse:
-        wh = Warehouse(name=data["name"], location=data["location"], notes=data.get("notes"))
+        cid = data.get("community_id")
+        if cid:
+            from app.services.community_service import CommunityService
+            CommunityService._get_or_404(cid)
+        wh = Warehouse(
+            name=data["name"],
+            location=data["location"],
+            notes=data.get("notes"),
+            community_id=cid or None,
+        )
         db.session.add(wh)
         db.session.commit()
         return wh
@@ -97,38 +163,69 @@ class InventoryService:
 
     @staticmethod
     def _get_or_create_lot(sku_id, warehouse_id, bin_id, lot_number, costing_method) -> InventoryLot:
+        # SKU-level costing policy: first receipt for a SKU locks the method for all lots/warehouses
+        if costing_method:
+            policy = db.session.get(SkuCostingPolicy, sku_id)
+            if policy is None:
+                policy = SkuCostingPolicy(sku_id=sku_id, costing_method=costing_method)
+                db.session.add(policy)
+                db.session.flush()
+            elif policy.costing_method != costing_method:
+                raise UnprocessableError(
+                    "costing_method_locked",
+                    f"SKU costing method is locked to '{policy.costing_method}' "
+                    f"from the first transaction",
+                )
+
         lot = InventoryLot.query.filter_by(
             sku_id=sku_id, warehouse_id=warehouse_id, bin_id=bin_id, lot_number=lot_number
         ).first()
         if lot is None:
+            from app.models.catalog import Product
+
+            prod = db.session.get(Product, sku_id)
+            threshold = int(prod.safety_stock_threshold or 0) if prod else 0
             lot = InventoryLot(
                 sku_id=sku_id, warehouse_id=warehouse_id, bin_id=bin_id,
                 lot_number=lot_number, costing_method=costing_method,
+                safety_stock_threshold=threshold,
             )
             db.session.add(lot)
             db.session.flush()
         elif costing_method and lot.costing_method != costing_method:
-            # Costing method is immutable after the first transaction (also enforced by DB trigger)
+            # Per-lot immutability (also enforced by DB trigger)
             raise UnprocessableError("costing_method_locked",
                                      "Costing method cannot be changed after first transaction")
         return lot
 
     @staticmethod
     def record_receipt(data: dict, actor: User) -> InventoryTransaction:
+        _validate_barcode(data.get("barcode"))
+        _validate_rfid(data.get("rfid"))
         lot = InventoryService._get_or_create_lot(
             data["sku_id"], data["warehouse_id"], data.get("bin_id"),
             data.get("lot_number"), data.get("costing_method", "fifo"),
         )
         qty = int(data["quantity"])
         lot.on_hand_qty += qty
+        if data.get("barcode"):
+            lot.barcode = str(data["barcode"])[:128]
+        if data.get("rfid"):
+            lot.rfid = str(data["rfid"])[:128]
+        serials = _serialize_serial_numbers(data.get("serial_numbers"))
+        if serials is not None:
+            lot.serial_numbers = serials
         occurred_at = (datetime.fromisoformat(data["occurred_at"])
-                       if "occurred_at" in data else datetime.now(timezone.utc))
+                       if data.get("occurred_at") else datetime.now(timezone.utc))
 
         txn = InventoryTransaction(
             type="receipt", sku_id=lot.sku_id, warehouse_id=lot.warehouse_id,
             bin_id=lot.bin_id, lot_id=lot.lot_id, quantity_delta=qty,
             actor_id=actor.user_id, occurred_at=occurred_at,
             correlation_id=_cid(), reference=data.get("notes"),
+            barcode=(str(data["barcode"])[:128] if data.get("barcode") else None),
+            rfid=(str(data["rfid"])[:128] if data.get("rfid") else None),
+            serial_numbers=serials,
         )
         db.session.add(txn)
 
@@ -146,6 +243,8 @@ class InventoryService:
 
     @staticmethod
     def record_issue(data: dict, actor: User) -> InventoryTransaction:
+        _validate_barcode(data.get("barcode"))
+        _validate_rfid(data.get("rfid"))
         lot = InventoryLot.query.filter_by(
             sku_id=data["sku_id"], warehouse_id=data["warehouse_id"],
             bin_id=data.get("bin_id"), lot_number=data.get("lot_number"),
@@ -162,13 +261,17 @@ class InventoryService:
         lot.slow_moving = False
 
         occurred_at = (datetime.fromisoformat(data["occurred_at"])
-                       if "occurred_at" in data else datetime.now(timezone.utc))
+                       if data.get("occurred_at") else datetime.now(timezone.utc))
 
+        serials = _serialize_serial_numbers(data.get("serial_numbers"))
         txn = InventoryTransaction(
             type="issue", sku_id=lot.sku_id, warehouse_id=lot.warehouse_id,
             bin_id=lot.bin_id, lot_id=lot.lot_id, quantity_delta=-qty,
             reference=data.get("reference"), actor_id=actor.user_id,
             occurred_at=occurred_at, correlation_id=_cid(),
+            barcode=(str(data["barcode"])[:128] if data.get("barcode") else lot.barcode),
+            rfid=(str(data["rfid"])[:128] if data.get("rfid") else lot.rfid),
+            serial_numbers=serials if serials is not None else lot.serial_numbers,
         )
         db.session.add(txn)
 
@@ -183,6 +286,8 @@ class InventoryService:
 
     @staticmethod
     def record_transfer(data: dict, actor: User) -> list:
+        _validate_barcode(data.get("barcode"))
+        _validate_rfid(data.get("rfid"))
         # 1. Look up source lot (raises if not found)
         source_lot = InventoryLot.query.filter_by(
             sku_id=data["sku_id"],
@@ -198,7 +303,7 @@ class InventoryService:
 
         qty = int(data["quantity"])
         occurred_at = (datetime.fromisoformat(data["occurred_at"])
-                       if "occurred_at" in data else datetime.now(timezone.utc))
+                       if data.get("occurred_at") else datetime.now(timezone.utc))
 
         # 3. Issue-side mutations (no commit)
         if source_lot.on_hand_qty < qty:
@@ -261,7 +366,7 @@ class InventoryService:
         before_qty = lot.on_hand_qty
         lot.on_hand_qty += delta
         occurred_at = (datetime.fromisoformat(data["occurred_at"])
-                       if "occurred_at" in data else datetime.now(timezone.utc))
+                       if data.get("occurred_at") else datetime.now(timezone.utc))
 
         txn = InventoryTransaction(
             type="adjustment", sku_id=lot.sku_id, warehouse_id=lot.warehouse_id,

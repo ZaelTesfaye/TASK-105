@@ -21,7 +21,7 @@ def create_template():
 @require_auth
 def get_template(template_id):
     version = request.args.get("version", type=int)
-    return jsonify(TemplateService.get(template_id, version=version))
+    return jsonify(TemplateService.get(template_id, version=version, user=g.current_user))
 
 
 @templates_bp.patch("/templates/<template_id>")

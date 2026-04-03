@@ -154,8 +154,8 @@ def test_settlement_response_shape(client, auth_headers):
 
     resp = client.post("/api/v1/settlements", json={
         "community_id": comm_id,
-        "period_start": "2026-01-01",
-        "period_end": "2026-01-07",
+        "period_start": "2026-01-05",
+        "period_end": "2026-01-11",
         "idempotency_key": uuid.uuid4().hex,
     }, headers=auth_headers)
     assert resp.status_code == 201

@@ -18,6 +18,16 @@ def search_products():
         "page": int(request.args.get("page", 1)),
         "page_size": min(int(request.args.get("page_size", 20)), 100),
     }
+    # Collect attribute filters: attributes[key]=value query params
+    attributes = {}
+    for key, value in request.args.items():
+        if key.startswith("attributes[") and key.endswith("]"):
+            attr_key = key[len("attributes["):-1]
+            if attr_key:
+                attributes[attr_key] = value
+    if attributes:
+        params["attributes"] = attributes
+
     result = SearchService.search_products(params, user=g.current_user)
     return jsonify(result)
 

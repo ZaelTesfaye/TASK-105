@@ -45,7 +45,7 @@ def test_send_direct_message(client, auth_headers):
 
 
 def test_send_group_message(client, auth_headers):
-    """POST /messages with group_id → 201."""
+    """POST /messages with group_id → 201 (sender must be an active community member)."""
     # Create a community first
     comm_resp = client.post("/api/v1/communities", json={
         "name": f"Grp-{uuid.uuid4().hex[:6]}",
@@ -56,6 +56,10 @@ def test_send_group_message(client, auth_headers):
     }, headers=auth_headers)
     assert comm_resp.status_code == 201
     group_id = comm_resp.json["community_id"]
+
+    # Sender must join the community before sending a group message
+    join_resp = client.post(f"/api/v1/communities/{group_id}/members", headers=auth_headers)
+    assert join_resp.status_code == 201
 
     resp = client.post("/api/v1/messages", json={
         "type": "text",

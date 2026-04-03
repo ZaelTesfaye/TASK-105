@@ -279,3 +279,104 @@ def test_template_type_change_requires_migration(client, auth_headers):
     pub = client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
     assert pub.status_code == 422
     assert pub.json["error"] == "migration_required"
+
+
+# ---------------------------------------------------------------------------
+# Template migration schema validation (Fix 1)
+# ---------------------------------------------------------------------------
+
+def test_template_empty_migration_rejected_on_publish(client, auth_headers):
+    """Migration with empty field_mappings must be rejected at publish time."""
+    tid = _template(client, auth_headers, fields=[
+        {"name": "color", "type": "text", "required": False}
+    ])["template_id"]
+    client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    # Remove field (non-additive)
+    client.patch(f"/api/v1/templates/{tid}", json={"fields": []}, headers=auth_headers)
+    # Create migration with empty field_mappings
+    mig = client.post(f"/api/v1/templates/{tid}/migrations", json={
+        "from_version": 1, "to_version": 2, "field_mappings": [],
+    }, headers=auth_headers)
+    assert mig.status_code == 201
+
+    pub = client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    assert pub.status_code == 422
+    assert pub.json["error"] == "migration_incomplete"
+
+
+def test_template_migration_invalid_transform_rejected(client, auth_headers):
+    """Migration with unknown transform is rejected at creation time."""
+    tid = _template(client, auth_headers, fields=[
+        {"name": "color", "type": "text", "required": False}
+    ])["template_id"]
+    client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    client.patch(f"/api/v1/templates/{tid}", json={"fields": []}, headers=auth_headers)
+
+    mig = client.post(f"/api/v1/templates/{tid}/migrations", json={
+        "from_version": 1, "to_version": 2,
+        "field_mappings": [{"from_field": "color", "to_field": None, "transform": "eval"}],
+    }, headers=auth_headers)
+    assert mig.status_code == 422
+    assert mig.json["error"] == "migration_invalid_transform"
+
+
+def test_template_migration_incomplete_coverage_rejected(client, auth_headers):
+    """Migration that doesn't cover all removed fields is rejected on publish."""
+    tid = _template(client, auth_headers, fields=[
+        {"name": "color", "type": "text", "required": False},
+        {"name": "size", "type": "text", "required": False},
+    ])["template_id"]
+    client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    # Remove both fields
+    client.patch(f"/api/v1/templates/{tid}", json={"fields": []}, headers=auth_headers)
+    # Migration covers only 'color', not 'size'
+    client.post(f"/api/v1/templates/{tid}/migrations", json={
+        "from_version": 1, "to_version": 2,
+        "field_mappings": [{"from_field": "color", "to_field": None, "transform": "drop"}],
+    }, headers=auth_headers)
+
+    pub = client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    assert pub.status_code == 422
+    assert pub.json["error"] == "migration_incomplete"
+
+
+def test_template_migration_complete_coverage_succeeds(client, auth_headers):
+    """Migration covering all removed fields with valid transforms allows publish."""
+    tid = _template(client, auth_headers, fields=[
+        {"name": "color", "type": "text", "required": False},
+        {"name": "size", "type": "text", "required": False},
+    ])["template_id"]
+    client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    client.patch(f"/api/v1/templates/{tid}", json={"fields": []}, headers=auth_headers)
+    # Migration covers both fields
+    client.post(f"/api/v1/templates/{tid}/migrations", json={
+        "from_version": 1, "to_version": 2,
+        "field_mappings": [
+            {"from_field": "color", "to_field": None, "transform": "drop"},
+            {"from_field": "size", "to_field": None, "transform": "drop"},
+        ],
+    }, headers=auth_headers)
+
+    pub = client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    assert pub.status_code == 200
+    assert pub.json["status"] == "published"
+
+
+def test_template_migration_default_transform_accepted(client, auth_headers):
+    """The 'default:<value>' transform is accepted as deterministic."""
+    tid = _template(client, auth_headers, fields=[
+        {"name": "color", "type": "text", "required": False}
+    ])["template_id"]
+    client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    client.patch(f"/api/v1/templates/{tid}", json={"fields": [
+        {"name": "color", "type": "number", "required": False}
+    ]}, headers=auth_headers)
+
+    mig = client.post(f"/api/v1/templates/{tid}/migrations", json={
+        "from_version": 1, "to_version": 2,
+        "field_mappings": [{"from_field": "color", "to_field": "color", "transform": "default:0"}],
+    }, headers=auth_headers)
+    assert mig.status_code == 201
+
+    pub = client.post(f"/api/v1/templates/{tid}/publish", headers=auth_headers)
+    assert pub.status_code == 200

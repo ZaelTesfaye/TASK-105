@@ -45,8 +45,8 @@ def _create_settlement(client, headers, community_id, idempotency_key=None):
         idempotency_key = uuid.uuid4().hex
     return client.post(f"{BASE}/settlements", json={
         "community_id": community_id,
-        "period_start": "2026-01-01",
-        "period_end": "2026-01-07",
+        "period_start": "2026-01-05",
+        "period_end": "2026-01-11",
         "idempotency_key": idempotency_key,
     }, headers=headers)
 
@@ -248,3 +248,111 @@ def test_finalize_no_disputes_200(client, auth_headers):
     resp = client.post(f"{BASE}/settlements/{sid}/finalize", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json["status"] == "completed"
+
+
+# ---------------------------------------------------------------------------
+# Settlement dispute object-level auth
+# ---------------------------------------------------------------------------
+
+def test_dispute_member_403(client, auth_headers, member_headers):
+    """Member cannot file a dispute (no settlement access) → 403."""
+    cid = _create_community(client, auth_headers)
+    sid = _create_settlement(client, auth_headers, cid).json["settlement_id"]
+    resp = client.post(f"{BASE}/settlements/{sid}/disputes", json={
+        "reason": "Unauthorized attempt",
+        "disputed_amount": 10.0,
+    }, headers=member_headers)
+    assert resp.status_code == 403
+
+
+def test_dispute_cross_community_gl_403(client, auth_headers):
+    """Group Leader cannot file a dispute on a settlement from a community they're not bound to."""
+    comm1_id = _create_community(client, auth_headers)
+    comm2_id = _create_community(client, auth_headers)
+    sid = _create_settlement(client, auth_headers, comm2_id).json["settlement_id"]
+
+    gl_name = f"gl_{uuid.uuid4().hex[:6]}"
+    with client.application.app_context():
+        from app.services.auth_service import AuthService
+        gl_user = AuthService.register(gl_name, "GlTestPass1!", role="Group Leader")
+        gl_user_id = str(gl_user.user_id)
+    gl_token = client.post(f"{BASE}/auth/login", json={
+        "username": gl_name, "password": "GlTestPass1!",
+    }).json["token"]
+    gl_headers = {"Authorization": f"Bearer {gl_token}"}
+
+    # Bind GL to comm1, not comm2
+    client.post(f"{BASE}/communities/{comm1_id}/leader-binding",
+                json={"user_id": gl_user_id}, headers=auth_headers)
+
+    resp = client.post(f"{BASE}/settlements/{sid}/disputes", json={
+        "reason": "Cross-community attempt",
+        "disputed_amount": 5.0,
+    }, headers=gl_headers)
+    assert resp.status_code == 403
+
+
+def test_settlement_totals_scoped_to_community_warehouses(client, auth_headers):
+    """Settlement sums only issue txns from warehouses tied to that community."""
+    comm1 = _create_community(client, auth_headers)
+    comm2 = _create_community(client, auth_headers)
+    wh1 = client.post(f"{BASE}/warehouses", json={
+        "name": f"WH-{uuid.uuid4().hex[:6]}",
+        "location": "A",
+        "community_id": comm1,
+    }, headers=auth_headers)
+    wh2 = client.post(f"{BASE}/warehouses", json={
+        "name": f"WH-{uuid.uuid4().hex[:6]}",
+        "location": "B",
+        "community_id": comm2,
+    }, headers=auth_headers)
+    assert wh1.status_code == 201 and wh2.status_code == 201
+    w1, w2 = wh1.json["warehouse_id"], wh2.json["warehouse_id"]
+
+    sku = f"SKU-{uuid.uuid4().hex[:8]}"
+    pr = client.post(f"{BASE}/products", json={
+        "sku": sku,
+        "name": "Settlement Test Product",
+        "brand": "B",
+        "category": "C",
+        "description": "",
+        "price_usd": 100.0,
+    }, headers=auth_headers)
+    assert pr.status_code == 201
+    pid = pr.json["product_id"]
+
+    for wh, qty in ((w1, 2), (w2, 5)):
+        r_resp = client.post(f"{BASE}/inventory/receipts", json={
+            "sku_id": pid,
+            "warehouse_id": wh,
+            "quantity": 20,
+            "unit_cost_usd": 1.0,
+            "costing_method": "fifo",
+            "occurred_at": "2026-01-05T08:00:00",
+        }, headers=auth_headers)
+        assert r_resp.status_code == 201
+        i_resp = client.post(f"{BASE}/inventory/issues", json={
+            "sku_id": pid,
+            "warehouse_id": wh,
+            "quantity": qty,
+            "occurred_at": "2026-01-06T10:00:00",
+        }, headers=auth_headers)
+        assert i_resp.status_code == 201
+
+    s_resp = client.post(f"{BASE}/settlements", json={
+        "community_id": comm1,
+        "period_start": "2026-01-05",
+        "period_end": "2026-01-11",
+        "idempotency_key": uuid.uuid4().hex,
+    }, headers=auth_headers)
+    assert s_resp.status_code == 201
+    assert s_resp.json["total_order_value_usd"] == 200.0
+
+    s2 = client.post(f"{BASE}/settlements", json={
+        "community_id": comm2,
+        "period_start": "2026-01-05",
+        "period_end": "2026-01-11",
+        "idempotency_key": uuid.uuid4().hex,
+    }, headers=auth_headers)
+    assert s2.status_code == 201
+    assert s2.json["total_order_value_usd"] == 500.0

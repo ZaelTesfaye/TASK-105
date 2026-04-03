@@ -73,7 +73,7 @@ def file_dispute(settlement_id):
 @require_roles("Administrator", "Operations Manager")
 def resolve_dispute(settlement_id, dispute_id):
     data = request.get_json(force=True) or {}
-    dispute = CommissionService.resolve_dispute(settlement_id, dispute_id, data)
+    dispute = CommissionService.resolve_dispute(settlement_id, dispute_id, data, actor=g.current_user)
     return jsonify(dispute.to_dict())
 
 

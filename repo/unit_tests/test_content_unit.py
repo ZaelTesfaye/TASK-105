@@ -233,11 +233,13 @@ class TestTemplateSchemaEvolution:
             }, author)
             v2_num = updated["version"]
 
-            # Create the required migration record
+            # Create the required migration record (must map removed field with a deterministic transform)
             TemplateService.create_migration(template_id, {
                 "from_version": v1_num,
                 "to_version": v2_num,
-                "field_mappings": [],
+                "field_mappings": [
+                    {"from_field": "dob", "to_field": None, "transform": "drop"},
+                ],
             })
 
             # Publish should now succeed

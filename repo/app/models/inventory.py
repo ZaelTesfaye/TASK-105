@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 import sqlalchemy as sa
 from app.extensions import db
@@ -11,6 +12,9 @@ class Warehouse(db.Model):
     __tablename__ = "warehouses"
 
     warehouse_id = db.Column(GUID, primary_key=True, default=new_uuid)
+    community_id = db.Column(
+        GUID, db.ForeignKey("communities.community_id"), nullable=True, index=True
+    )
     name = db.Column(db.String(256), nullable=False)
     location = db.Column(db.Text, nullable=False)
     notes = db.Column(db.Text, nullable=True)
@@ -25,6 +29,7 @@ class Warehouse(db.Model):
     def to_dict(self) -> dict:
         return {
             "warehouse_id": str(self.warehouse_id),
+            "community_id": str(self.community_id) if self.community_id else None,
             "name": self.name,
             "location": self.location,
             "notes": self.notes,
@@ -87,6 +92,10 @@ class InventoryLot(db.Model):
     bin_id = db.Column(GUID, db.ForeignKey("bins.bin_id"), nullable=True)
     lot_number = db.Column(db.String(128), nullable=True)
     serial_number = db.Column(db.String(128), nullable=True)
+    barcode = db.Column(db.String(128), nullable=True)
+    rfid = db.Column(db.String(128), nullable=True)
+    # JSON array of serial strings, e.g. ["SN-1","SN-2"]
+    serial_numbers = db.Column(db.Text, nullable=True)
     on_hand_qty = db.Column(db.Integer, nullable=False, default=0)
     # Immutable after first transaction (enforced by DB trigger)
     costing_method = db.Column(db.String(16), nullable=False)
@@ -99,12 +108,21 @@ class InventoryLot(db.Model):
     )
 
     def to_dict(self) -> dict:
+        serials = None
+        if self.serial_numbers:
+            try:
+                serials = json.loads(self.serial_numbers)
+            except json.JSONDecodeError:
+                serials = self.serial_numbers
         return {
             "lot_id": str(self.lot_id),
             "sku_id": str(self.sku_id),
             "warehouse_id": str(self.warehouse_id),
             "bin_id": str(self.bin_id) if self.bin_id else None,
             "lot_number": self.lot_number,
+            "barcode": self.barcode,
+            "rfid": self.rfid,
+            "serial_numbers": serials,
             "on_hand_qty": self.on_hand_qty,
             "costing_method": self.costing_method,
             "safety_stock_threshold": self.safety_stock_threshold,
@@ -147,8 +165,17 @@ class InventoryTransaction(db.Model):
     actor_id = db.Column(GUID, db.ForeignKey("users.user_id"), nullable=False)
     occurred_at = db.Column(db.DateTime, nullable=False, index=True)
     correlation_id = db.Column(db.String(36), nullable=False)
+    barcode = db.Column(db.String(128), nullable=True)
+    rfid = db.Column(db.String(128), nullable=True)
+    serial_numbers = db.Column(db.Text, nullable=True)
 
     def to_dict(self) -> dict:
+        serials = None
+        if self.serial_numbers:
+            try:
+                serials = json.loads(self.serial_numbers)
+            except json.JSONDecodeError:
+                serials = self.serial_numbers
         return {
             "transaction_id": str(self.transaction_id),
             "type": self.type,
@@ -162,6 +189,9 @@ class InventoryTransaction(db.Model):
             "actor_id": str(self.actor_id),
             "occurred_at": self.occurred_at.isoformat(),
             "correlation_id": self.correlation_id,
+            "barcode": self.barcode,
+            "rfid": self.rfid,
+            "serial_numbers": serials,
         }
 
 
@@ -266,3 +296,20 @@ class CycleCountLine(db.Model):
             "variance": self.variance,
             "variance_reason": self.variance_reason,
         }
+
+
+class SkuCostingPolicy(db.Model):
+    """
+    Enforces costing method immutability at the SKU level (not just per lot).
+    The first inventory receipt for a SKU establishes the policy; any subsequent
+    receipt using a different method is rejected with 422 costing_method_locked.
+    """
+    __tablename__ = "sku_costing_policies"
+
+    sku_id = db.Column(
+        GUID, db.ForeignKey("products.product_id"), primary_key=True, nullable=False
+    )
+    costing_method = db.Column(db.String(32), nullable=False)
+    locked_at = db.Column(
+        db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )

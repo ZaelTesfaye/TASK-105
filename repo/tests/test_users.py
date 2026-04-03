@@ -11,16 +11,25 @@ import uuid
 # ---------------------------------------------------------------------------
 
 def _register_login(client, role="Member", password="ValidPass1234!"):
-    """Register a user with a unique username and return (user_id, token)."""
+    """Register a user with a unique username and return (user_id, token).
+    Member role uses the public HTTP endpoint; privileged roles use AuthService
+    directly because the public endpoint is locked to 'Member'."""
     username = f"u_{uuid.uuid4().hex[:10]}"
-    reg = client.post("/api/v1/auth/register", json={
-        "username": username, "password": password, "role": role,
-    })
-    assert reg.status_code == 201, reg.json
+    if role == "Member":
+        reg = client.post("/api/v1/auth/register", json={
+            "username": username, "password": password,
+        })
+        assert reg.status_code == 201, reg.json
+        user_id = reg.json["user_id"]
+    else:
+        with client.application.app_context():
+            from app.services.auth_service import AuthService
+            user = AuthService.register(username, password, role=role)
+            user_id = str(user.user_id)
     token = client.post("/api/v1/auth/login", json={
         "username": username, "password": password,
     }).json["token"]
-    return reg.json["user_id"], token
+    return user_id, token
 
 
 def _headers(token):

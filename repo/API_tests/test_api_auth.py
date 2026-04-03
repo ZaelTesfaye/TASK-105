@@ -63,11 +63,10 @@ def test_register_duplicate_username_409(client):
     assert resp.json["error"] == "username_taken"
 
 
-def test_register_invalid_role_ignored(client):
-    """Registering with an unknown role now silently ignores it and creates a Member account."""
+def test_register_invalid_role_400(client):
+    """Registering with an unknown role returns 400 (schema validates known roles)."""
     resp = _register(client, username=_unique_username(), role="Hacker")
-    assert resp.status_code == 201
-    assert resp.json["role"] == "Member"
+    assert resp.status_code == 400
 
 
 def test_register_role_field_ignored(client):

@@ -22,7 +22,7 @@ def create_content():
 @require_auth
 def get_content(content_id):
     version = request.args.get("version", type=int)
-    return jsonify(ContentService.get(content_id, version=version))
+    return jsonify(ContentService.get(content_id, version=version, user=g.current_user))
 
 
 @content_bp.patch("/content/<content_id>")

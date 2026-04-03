@@ -55,6 +55,7 @@ def redeliver_messages() -> None:
     delivered = 0
     for receipt in pending:
         try:
+            # Push via Socket.IO (existing behaviour)
             from app.extensions import socketio
             socketio.emit(
                 "message",
@@ -62,6 +63,21 @@ def redeliver_messages() -> None:
                 room=f"user_{receipt.recipient_id}",
                 namespace="/ws/messaging",
             )
+
+            # Push via STOMP registry (if recipient has an active STOMP session)
+            try:
+                from app.stomp_ws import stomp_registry, _build_frame
+                import json as _json
+                if stomp_registry.is_user_online(str(receipt.recipient_id)):
+                    frame = _build_frame("MESSAGE", {
+                        "destination": "/user/queue/messages",
+                        "content-type": "application/json",
+                        "message-id": str(receipt.message_id),
+                    }, _json.dumps(receipt.message.to_dict()))
+                    stomp_registry.push_to_user(str(receipt.recipient_id), frame)
+            except ImportError:
+                pass  # flask-sock not installed
+
             delivered += 1
             logger.info({"event": "message_redelivery",
                          "message_id": str(receipt.message_id),

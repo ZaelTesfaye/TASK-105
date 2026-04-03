@@ -399,3 +399,216 @@ def test_list_transactions_type_filter(client, auth_headers):
                       headers=auth_headers)
     assert resp.status_code == 200
     assert all(t["type"] == "receipt" for t in resp.json["items"])
+
+
+# ---------------------------------------------------------------------------
+# SKU-level costing method immutability
+# ---------------------------------------------------------------------------
+
+def test_sku_costing_policy_locks_on_first_receipt(client, auth_headers):
+    """First receipt for a SKU sets the costing method policy."""
+    import uuid
+    from app.models.inventory import SkuCostingPolicy
+    sku_id = _create_product(client, auth_headers, f"SKU-LOCK-{uuid.uuid4().hex[:6]}")
+    wh_id = _create_warehouse(client, auth_headers)
+    resp = _receipt(client, auth_headers, sku_id, wh_id, qty=10, method="fifo")
+    assert resp.status_code == 201
+    with client.application.app_context():
+        policy = SkuCostingPolicy.query.get(sku_id)
+        assert policy is not None
+        assert policy.costing_method == "fifo"
+
+
+def test_sku_costing_policy_blocks_different_method(client, auth_headers):
+    """Second receipt with a different costing method → 422 costing_method_locked."""
+    import uuid
+    sku_id = _create_product(client, auth_headers, f"SKU-BLK-{uuid.uuid4().hex[:6]}")
+    wh1 = _create_warehouse(client, auth_headers, name=f"WH-A-{uuid.uuid4().hex[:4]}")
+    wh2 = _create_warehouse(client, auth_headers, name=f"WH-B-{uuid.uuid4().hex[:4]}")
+    # First receipt with fifo
+    r1 = _receipt(client, auth_headers, sku_id, wh1, qty=10, method="fifo")
+    assert r1.status_code == 201
+    # Second receipt for same SKU in a different warehouse with moving_average → blocked
+    r2 = _receipt(client, auth_headers, sku_id, wh2, qty=5, method="moving_average")
+    assert r2.status_code == 422
+    assert r2.json["error"] == "costing_method_locked"
+
+
+def test_sku_costing_same_method_allowed(client, auth_headers):
+    """Second receipt for same SKU with same method succeeds."""
+    import uuid
+    sku_id = _create_product(client, auth_headers, f"SKU-SAME-{uuid.uuid4().hex[:6]}")
+    wh1 = _create_warehouse(client, auth_headers, name=f"WH-C-{uuid.uuid4().hex[:4]}")
+    wh2 = _create_warehouse(client, auth_headers, name=f"WH-D-{uuid.uuid4().hex[:4]}")
+    r1 = _receipt(client, auth_headers, sku_id, wh1, qty=10, method="fifo")
+    assert r1.status_code == 201
+    r2 = _receipt(client, auth_headers, sku_id, wh2, qty=5, method="fifo")
+    assert r2.status_code == 201
+
+
+# ---------------------------------------------------------------------------
+# Barcode / RFID format validation (Fix 4)
+# ---------------------------------------------------------------------------
+
+def test_receipt_valid_barcode_accepted(client, auth_headers):
+    import uuid
+    sku_id = _create_product(client, auth_headers, f"BC-OK-{uuid.uuid4().hex[:6]}")
+    wh_id = _create_warehouse(client, auth_headers)
+    resp = client.post("/api/v1/inventory/receipts", json={
+        "sku_id": sku_id, "warehouse_id": wh_id, "quantity": 5,
+        "costing_method": "fifo", "unit_cost_usd": 1.0,
+        "barcode": "UPC-12345678",
+        "occurred_at": "2026-01-01T10:00:00",
+    }, headers=auth_headers)
+    assert resp.status_code == 201
+
+
+def test_receipt_invalid_barcode_rejected(client, auth_headers):
+    """Barcode with spaces/special chars must be rejected."""
+    import uuid
+    sku_id = _create_product(client, auth_headers, f"BC-BAD-{uuid.uuid4().hex[:6]}")
+    wh_id = _create_warehouse(client, auth_headers)
+    resp = client.post("/api/v1/inventory/receipts", json={
+        "sku_id": sku_id, "warehouse_id": wh_id, "quantity": 5,
+        "costing_method": "fifo", "unit_cost_usd": 1.0,
+        "barcode": "INVALID BARCODE!@#",
+        "occurred_at": "2026-01-01T10:00:00",
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid_barcode_format"
+
+
+def test_receipt_invalid_rfid_rejected(client, auth_headers):
+    """RFID must be hex only; non-hex chars are rejected."""
+    import uuid
+    sku_id = _create_product(client, auth_headers, f"RF-BAD-{uuid.uuid4().hex[:6]}")
+    wh_id = _create_warehouse(client, auth_headers)
+    resp = client.post("/api/v1/inventory/receipts", json={
+        "sku_id": sku_id, "warehouse_id": wh_id, "quantity": 5,
+        "costing_method": "fifo", "unit_cost_usd": 1.0,
+        "rfid": "NOT-HEX-VALUE",
+        "occurred_at": "2026-01-01T10:00:00",
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid_rfid_format"
+
+
+def test_receipt_valid_rfid_accepted(client, auth_headers):
+    import uuid
+    sku_id = _create_product(client, auth_headers, f"RF-OK-{uuid.uuid4().hex[:6]}")
+    wh_id = _create_warehouse(client, auth_headers)
+    resp = client.post("/api/v1/inventory/receipts", json={
+        "sku_id": sku_id, "warehouse_id": wh_id, "quantity": 5,
+        "costing_method": "fifo", "unit_cost_usd": 1.0,
+        "rfid": "E200001234ABCDEF",
+        "occurred_at": "2026-01-01T10:00:00",
+    }, headers=auth_headers)
+    assert resp.status_code == 201
+
+
+def test_issue_invalid_barcode_rejected(client, auth_headers):
+    """Issue with invalid barcode format is rejected."""
+    import uuid
+    sku_id = _create_product(client, auth_headers, f"BC-ISS-{uuid.uuid4().hex[:6]}")
+    wh_id = _create_warehouse(client, auth_headers)
+    _receipt(client, auth_headers, sku_id, wh_id, qty=10)
+    resp = client.post("/api/v1/inventory/issues", json={
+        "sku_id": sku_id, "warehouse_id": wh_id, "quantity": 1,
+        "barcode": "BAD BARCODE!!",
+        "occurred_at": "2026-01-02T10:00:00",
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid_barcode_format"
+
+
+def test_transfer_invalid_rfid_rejected(client, auth_headers):
+    """Transfer with invalid RFID format is rejected."""
+    import uuid
+    sku_id = _create_product(client, auth_headers, f"RF-XFR-{uuid.uuid4().hex[:6]}")
+    wh1 = _create_warehouse(client, auth_headers, name=f"WH-rfx-{uuid.uuid4().hex[:4]}")
+    wh2 = _create_warehouse(client, auth_headers, name=f"WH-rfy-{uuid.uuid4().hex[:4]}")
+    _receipt(client, auth_headers, sku_id, wh1, qty=10)
+    resp = client.post("/api/v1/inventory/transfers", json={
+        "sku_id": sku_id,
+        "from_warehouse_id": wh1, "to_warehouse_id": wh2,
+        "quantity": 5,
+        "rfid": "ZZZZ-NOT-HEX",
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid_rfid_format"
+
+
+# ---------------------------------------------------------------------------
+# Schema validation (Fix 5) — missing/invalid fields return 400/422
+# ---------------------------------------------------------------------------
+
+def test_receipt_missing_sku_id_returns_400(client, auth_headers):
+    """Missing required field sku_id returns structured validation error."""
+    resp = client.post("/api/v1/inventory/receipts", json={
+        "warehouse_id": "some-wh", "quantity": 5,
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+    assert "sku_id" in resp.json["fields"]
+
+
+def test_receipt_missing_warehouse_id_returns_400(client, auth_headers):
+    resp = client.post("/api/v1/inventory/receipts", json={
+        "sku_id": "some-sku", "quantity": 5,
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+    assert "warehouse_id" in resp.json["fields"]
+
+
+def test_receipt_invalid_quantity_returns_400(client, auth_headers):
+    """quantity must be a positive integer."""
+    resp = client.post("/api/v1/inventory/receipts", json={
+        "sku_id": "x", "warehouse_id": "y", "quantity": -1,
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+    assert "quantity" in resp.json["fields"]
+
+
+def test_issue_missing_fields_returns_400(client, auth_headers):
+    resp = client.post("/api/v1/inventory/issues", json={}, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+    assert "sku_id" in resp.json["fields"]
+    assert "warehouse_id" in resp.json["fields"]
+    assert "quantity" in resp.json["fields"]
+
+
+def test_transfer_missing_fields_returns_400(client, auth_headers):
+    resp = client.post("/api/v1/inventory/transfers", json={}, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+    assert "sku_id" in resp.json["fields"]
+    assert "from_warehouse_id" in resp.json["fields"]
+    assert "to_warehouse_id" in resp.json["fields"]
+
+
+def test_adjustment_missing_fields_returns_400(client, auth_headers):
+    resp = client.post("/api/v1/inventory/adjustments", json={}, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+    assert "sku_id" in resp.json["fields"]
+
+
+def test_warehouse_missing_name_returns_400(client, auth_headers):
+    resp = client.post("/api/v1/warehouses", json={"location": "Bldg A"},
+                       headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+    assert "name" in resp.json["fields"]
+
+
+def test_receipt_invalid_costing_method_returns_400(client, auth_headers):
+    resp = client.post("/api/v1/inventory/receipts", json={
+        "sku_id": "x", "warehouse_id": "y", "quantity": 1,
+        "costing_method": "invalid_method",
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+    assert "costing_method" in resp.json["fields"]

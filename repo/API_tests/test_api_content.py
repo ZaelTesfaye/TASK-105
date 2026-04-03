@@ -315,3 +315,66 @@ def test_list_template_versions_200(client, auth_headers):
     versions = resp.json
     assert isinstance(versions, list)
     assert len(versions) >= 2
+
+
+# ---------------------------------------------------------------------------
+# Content draft isolation (SECURITY: non-privileged users must not see drafts)
+# ---------------------------------------------------------------------------
+
+def test_member_get_returns_published_not_draft(client, auth_headers, member_headers):
+    """Publish v1, draft v2 → Member GET (no version param) returns v1 body, not v2."""
+    content = _create_content(client, auth_headers, body="<p>Version one</p>")
+    cid = content["content_id"]
+    # Publish v1
+    client.post(f"{BASE}/content/{cid}/publish", headers=auth_headers)
+    # Create draft v2
+    client.patch(f"{BASE}/content/{cid}", json={"body": "<p>Draft v2</p>"}, headers=auth_headers)
+
+    resp = client.get(f"{BASE}/content/{cid}", headers=member_headers)
+    assert resp.status_code == 200
+    assert resp.json["version"] == 1
+    assert resp.json["body"] == "<p>Version one</p>"
+
+
+def test_member_get_unpublished_content_404(client, auth_headers, member_headers):
+    """Member GET on content with no published version returns 404."""
+    content = _create_content(client, auth_headers)  # draft only, never published
+    cid = content["content_id"]
+    resp = client.get(f"{BASE}/content/{cid}", headers=member_headers)
+    assert resp.status_code == 404
+
+
+def test_member_get_template_returns_published_not_draft(client, auth_headers, member_headers):
+    """Publish template v1, draft v2 → Member GET default returns v1 fields."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    client.post(f"{BASE}/templates/{tid}/publish", headers=auth_headers)
+    client.patch(f"{BASE}/templates/{tid}", json={
+        "fields": [
+            {"name": "color", "type": "text", "required": False},
+            {"name": "size", "type": "text", "required": False},
+        ],
+    }, headers=auth_headers)
+    admin_get = client.get(f"{BASE}/templates/{tid}", headers=auth_headers)
+    assert admin_get.status_code == 200
+    assert admin_get.json["version"] == 2
+
+    m_resp = client.get(f"{BASE}/templates/{tid}", headers=member_headers)
+    assert m_resp.status_code == 200
+    assert m_resp.json["version"] == 1
+    fields = m_resp.json["fields"]
+    assert len(fields) == 1
+    assert fields[0]["name"] == "color"
+
+
+def test_admin_get_returns_draft_head(client, auth_headers):
+    """Admin GET without version param sees the draft head (current_version)."""
+    content = _create_content(client, auth_headers, body="<p>v1 body</p>")
+    cid = content["content_id"]
+    client.post(f"{BASE}/content/{cid}/publish", headers=auth_headers)
+    client.patch(f"{BASE}/content/{cid}", json={"body": "<p>v2 draft</p>"}, headers=auth_headers)
+
+    resp = client.get(f"{BASE}/content/{cid}", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json["version"] == 2
+    assert resp.json["body"] == "<p>v2 draft</p>"
