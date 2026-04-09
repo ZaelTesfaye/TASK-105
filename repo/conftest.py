@@ -1,17 +1,18 @@
 """
 Root conftest.py — executed by pytest before any test is collected.
 
-Sets PYTHONPATH and required environment variables so that both
-unit_tests/ and API_tests/ can import from app/ regardless of
+Sets PYTHONPATH and required environment variables so that
+backend/tests/{unit,api,integration} can import from app/ regardless of
 the working directory.
 """
 import os
 import sys
 
-# Make the Flask application package importable
+# Make the Flask application package importable from backend/
 _REPO_DIR = os.path.dirname(os.path.abspath(__file__))
-if _REPO_DIR not in sys.path:
-    sys.path.insert(0, _REPO_DIR)
+_BACKEND_DIR = os.path.join(_REPO_DIR, "backend")
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
 
 # Point data-layer env vars at the repo's data/ tree
 _DATA_DIR = os.path.join(_REPO_DIR, "data")

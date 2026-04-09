@@ -23,15 +23,21 @@ Backend service for a local group-leader commerce model with catalog/search, inv
 
 ```text
 repo/
-├── app/                 # Flask application
-├── migrations/          # Alembic migrations
-├── scripts/             # start.sh, seed, migrate (ci_run_tests.sh optional alias)
-├── unit_tests/          # Unit tests
-├── API_tests/           # API functional tests
-├── run_tests.sh / run_tests.ps1
-├── docker-compose.yml
+├── backend/
+│   ├── app/               # Flask application (routes, models, services, middleware)
+│   ├── config/            # Clean Config module (single source of truth for env vars)
+│   ├── logging/           # Centralized Logger definition
+│   └── tests/
+│       ├── unit/          # Isolated unit tests
+│       ├── api/           # API functional tests
+│       └── integration/   # Integration / job tests
+├── migrations/            # Alembic schema migrations
+├── scripts/               # start.sh, seed, migrate helpers
+├── docker-compose.yml     # Main orchestration (defines all env vars)
+├── run_tests.sh           # Global test execution script
 ├── Dockerfile
-└── requirements.txt
+├── requirements.txt
+└── README.md
 ```
 
 Documentation: `docs/` (prompt, questions, API spec, design).
@@ -51,12 +57,12 @@ docker compose up --build
 
 On first start and on every restart, the container entrypoint:
 
-1. Creates a Fernet encryption key under the mounted `data/keys/` volume if it is missing  
-2. Applies database schema with **Alembic migrations** (`flask db upgrade`)  
-3. Runs the **seed script** (idempotent; re-runs are safe)  
+1. Creates a Fernet encryption key under the mounted `data/keys/` volume if it is missing
+2. Applies database schema with **Alembic migrations** (`flask db upgrade`)
+3. Runs the **seed script** (idempotent; re-runs are safe)
 4. Starts the API on port **5000**
 
-You do **not** run migrations, seeding, or `.env` setup manually—Compose and the image handle it.
+You do **not** run migrations, seeding, or `.env` setup manually -- Compose and the image handle it.
 
 Open the app:
 
@@ -73,15 +79,26 @@ docker compose down
 
 Runtime data (SQLite DB, keys, logs, attachments) lives under `repo/data/` as a **single** Compose bind mount (`./data:/app/data`). Do not bind-mount only `db.sqlite3` by file path on an empty host tree, or Docker may create a **directory** named `db.sqlite3` and SQLite will fail with `unable to open database file`.
 
-## Optional: override Compose defaults
+## Environment Variables
 
-You can pass environment variables on the command line when starting the stack, for example:
+All environment variables are defined in `docker-compose.yml` and centralized through `backend/config/` (the Clean Config module). Application logic never reads `os.environ` directly.
+
+| Variable | Default | Description |
+|---|---|---|
+| `FLASK_ENV` | `production` | Config profile (development/testing/production) |
+| `SECRET_KEY` | `change-me-for-production` | Flask secret key |
+| `DATABASE_URL` | `sqlite:////app/data/db.sqlite3` | SQLAlchemy connection string |
+| `FERNET_KEY_PATH` | `/app/data/keys/secret.key` | Fernet encryption key path |
+| `LOG_FILE` | `/app/data/logs/app.jsonl` | Structured JSON log output |
+| `ATTACHMENT_DIR` | `/app/data/attachments` | File upload directory |
+| `JOBS_ENABLED` | `true` | Enable background jobs |
+| `ENABLE_TLS` | `false` | TLS toggle (Boolean) |
+
+Override on the command line:
 
 ```bash
-FLASK_ENV=production APP_VERSION=0.2.0 SECRET_KEY=your-secret docker compose up --build
+FLASK_ENV=production SECRET_KEY=your-secret docker compose up --build
 ```
-
-If you omit them, defaults are defined in `docker-compose.yml`.
 
 ## Tests
 
@@ -94,7 +111,7 @@ bash run_tests.sh
 ```
 
 - **Host with dependencies:** run `pip install -r requirements.txt` first; tests execute on your machine.
-- **Host without pytest (e.g. CI):** the same `run_tests.sh` detects that, and **re-runs itself inside** the Docker app image (needs `docker compose` and an image build — run `docker compose build` once in the job before `bash run_tests.sh`).
+- **Host without pytest (e.g. CI):** the same `run_tests.sh` detects that, and **re-runs itself inside** the Docker app image (needs `docker compose` and an image build -- run `docker compose build` once in the job before `bash run_tests.sh`).
 
 On Windows: `powershell -ExecutionPolicy Bypass -File run_tests.ps1` (host with deps only).
 

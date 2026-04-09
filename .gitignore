@@ -1,7 +1,6 @@
-# Excluded from version control (per project policy)
-a20597d5-e355-411e-b217-0ffb357f9bb1.jsonl
+# Excluded from version control
 convert_ai_session.py
-
+# temp/
 # Local IDE / agent config (do not publish)
 .claude/
 
@@ -14,3 +13,61 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+
+*.tmp.md
+c
+# Environment variables
+.env
+*.local
+
+#  environments
+venv/
+.venv/
+env/
+.env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+
+# Flask
+instance/
+.webassets-cache
+
+# SQLite
+*.db
+*.sqlite3
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Logs
+logs/
+*.log
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+

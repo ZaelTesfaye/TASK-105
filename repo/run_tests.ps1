@@ -44,7 +44,7 @@ with open(r'$keyFile', 'wb') as f:
 }
 
 # --- Environment ---
-$env:PYTHONPATH      = $REPO
+$env:PYTHONPATH      = Join-Path $REPO "backend"
 $env:FERNET_KEY_PATH = $keyFile
 $env:LOG_FILE        = Join-Path $REPO "data\logs\app.jsonl"
 $env:ATTACHMENT_DIR  = Join-Path $REPO "data\attachments"
@@ -54,12 +54,12 @@ Set-Location $ROOT
 # --- Run unit tests ---
 Write-Host ""
 Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
-Write-Host "  PHASE 1 - Unit Tests  (unit_tests/)"                   -ForegroundColor Cyan
+Write-Host "  PHASE 1 - Unit Tests  (backend/tests/unit/)"           -ForegroundColor Cyan
 Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
 
 $unitResult = 0
 try {
-    python -m pytest unit_tests/ -v --tb=short --no-header -q
+    python -m pytest backend/tests/unit/ -v --tb=short --no-header -q
 } catch {
     $unitResult = $LASTEXITCODE
 }
@@ -68,12 +68,12 @@ if ($LASTEXITCODE -ne 0) { $unitResult = $LASTEXITCODE }
 # --- Run API functional tests ---
 Write-Host ""
 Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
-Write-Host "  PHASE 2 - API Functional Tests  (API_tests/)"          -ForegroundColor Cyan
+Write-Host "  PHASE 2 - API Functional Tests  (backend/tests/api/)"  -ForegroundColor Cyan
 Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
 
 $apiResult = 0
 try {
-    python -m pytest API_tests/ -v --tb=short --no-header -q
+    python -m pytest backend/tests/api/ -v --tb=short --no-header -q
 } catch {
     $apiResult = $LASTEXITCODE
 }
@@ -82,12 +82,12 @@ if ($LASTEXITCODE -ne 0) { $apiResult = $LASTEXITCODE }
 # --- Integration / job tests ---
 Write-Host ""
 Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
-Write-Host "  PHASE 3 - Integration/Job Tests  (tests/)"             -ForegroundColor Cyan
+Write-Host "  PHASE 3 - Integration/Job Tests  (backend/tests/integration/)" -ForegroundColor Cyan
 Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
 
 $jobsResult = 0
 try {
-    python -m pytest tests/ -v --tb=short --no-header -q
+    python -m pytest backend/tests/integration/ -v --tb=short --no-header -q
 } catch {
     $jobsResult = $LASTEXITCODE
 }
@@ -100,7 +100,7 @@ Write-Host "  SUMMARY"                                                 -Foregrou
 Write-Host "========================================================" -ForegroundColor Cyan
 $oldEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-python -m pytest unit_tests/ API_tests/ tests/ --tb=no -q 2>&1 | Select-Object -Last 5 | Write-Host
+python -m pytest backend/tests/unit/ backend/tests/api/ backend/tests/integration/ --tb=no -q 2>&1 | Select-Object -Last 5 | Write-Host
 $ErrorActionPreference = $oldEap
 
 Write-Host ""

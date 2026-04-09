@@ -12,7 +12,8 @@ roles (Administrator, Group Leader, etc.) are stored correctly.
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(_repo_root, "backend"))
 
 from app import create_app
 

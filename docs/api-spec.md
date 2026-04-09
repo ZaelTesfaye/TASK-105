@@ -16,7 +16,11 @@
 - `correlation_id` is returned in every response header as `X-Correlation-ID`.
 - Error shape:
   ```json
-  { "error": "short_code", "message": "Human-readable detail", "field": "optional_field_name" }
+  {
+    "error": "short_code",
+    "message": "Human-readable detail",
+    "field": "optional_field_name"
+  }
   ```
 
 ---
@@ -24,11 +28,13 @@
 ## 1. Authentication & Users
 
 ### `POST /auth/register`
+
 Create a new user account.
 
 **Roles:** Public (Administrator seeds first account; subsequent registrations may require admin invite token).
 
 **Request:**
+
 ```json
 {
   "username": "string (unique, max 64)",
@@ -38,8 +44,14 @@ Create a new user account.
 ```
 
 **Response `201`:**
+
 ```json
-{ "user_id": "uuid", "username": "string", "role": "Member", "created_at": "timestamp" }
+{
+  "user_id": "uuid",
+  "username": "string",
+  "role": "Member",
+  "created_at": "timestamp"
+}
 ```
 
 **Errors:** `400 password_too_short`, `409 username_taken`
@@ -47,16 +59,24 @@ Create a new user account.
 ---
 
 ### `POST /auth/login`
+
 Authenticate and receive a session token.
 
 **Request:**
+
 ```json
 { "username": "string", "password": "string" }
 ```
 
 **Response `200`:**
+
 ```json
-{ "token": "string", "expires_at": "timestamp", "user_id": "uuid", "role": "string" }
+{
+  "token": "string",
+  "expires_at": "timestamp",
+  "user_id": "uuid",
+  "role": "string"
+}
 ```
 
 **Errors:** `401 invalid_credentials`, `423 account_locked` (includes `"retry_after": "timestamp"` after 5 failed attempts; lockout lasts 15 minutes)
@@ -64,6 +84,7 @@ Authenticate and receive a session token.
 ---
 
 ### `POST /auth/logout`
+
 Invalidate the current session token.
 
 **Roles:** Authenticated
@@ -73,6 +94,7 @@ Invalidate the current session token.
 ---
 
 ### `GET /users`
+
 List all users.
 
 **Roles:** Administrator, Operations Manager
@@ -80,13 +102,20 @@ List all users.
 **Query params:** `?role=<role>&page=&page_size=`
 
 **Response `200`:**
+
 ```json
 {
   "total": 150,
   "page": 1,
   "page_size": 20,
   "items": [
-    { "user_id": "uuid", "username": "string", "role": "string", "created_at": "timestamp", "deleted_at": "timestamp|null" }
+    {
+      "user_id": "uuid",
+      "username": "string",
+      "role": "string",
+      "created_at": "timestamp",
+      "deleted_at": "timestamp|null"
+    }
   ]
 }
 ```
@@ -94,23 +123,32 @@ List all users.
 ---
 
 ### `GET /users/{user_id}`
+
 Get a single user profile.
 
 **Roles:** Administrator, Operations Manager, or self.
 
 **Response `200`:**
+
 ```json
-{ "user_id": "uuid", "username": "string", "role": "string", "created_at": "timestamp" }
+{
+  "user_id": "uuid",
+  "username": "string",
+  "role": "string",
+  "created_at": "timestamp"
+}
 ```
 
 ---
 
 ### `PATCH /users/{user_id}`
+
 Update role or username. Password and sensitive fields are updated via dedicated sub-resource.
 
 **Roles:** Administrator (role changes); self (username changes).
 
 **Request:**
+
 ```json
 { "role": "string (optional)", "username": "string (optional)" }
 ```
@@ -120,11 +158,13 @@ Update role or username. Password and sensitive fields are updated via dedicated
 ---
 
 ### `PATCH /users/{user_id}/password`
+
 Change password.
 
 **Roles:** Self, Administrator
 
 **Request:**
+
 ```json
 { "current_password": "string", "new_password": "string (min 12)" }
 ```
@@ -134,6 +174,7 @@ Change password.
 ---
 
 ### `DELETE /users/{user_id}`
+
 Soft-delete a user.
 
 **Roles:** Administrator
@@ -145,11 +186,13 @@ Soft-delete a user.
 ## 2. Communities & Service Areas
 
 ### `POST /communities`
+
 Create a community.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 {
   "name": "string",
@@ -164,6 +207,7 @@ Create a community.
 ```
 
 **Response `201`:**
+
 ```json
 { "community_id": "uuid", "name": "string", "created_at": "timestamp" }
 ```
@@ -171,6 +215,7 @@ Create a community.
 ---
 
 ### `GET /communities`
+
 List communities.
 
 **Roles:** All authenticated
@@ -182,9 +227,11 @@ List communities.
 ---
 
 ### `GET /communities/{community_id}`
+
 Get community detail including active group leader binding.
 
 **Response `200`:**
+
 ```json
 {
   "community_id": "uuid",
@@ -192,13 +239,14 @@ Get community detail including active group leader binding.
   "address": { "line1": "", "city": "", "state": "", "zip": "" },
   "service_hours": {},
   "fulfillment_scope": "string",
-  "active_group_leader": { "user_id": "uuid", "username": "string" } 
+  "active_group_leader": { "user_id": "uuid", "username": "string" }
 }
 ```
 
 ---
 
 ### `PATCH /communities/{community_id}`
+
 Update community fields.
 
 **Roles:** Administrator, Operations Manager
@@ -208,6 +256,7 @@ Update community fields.
 ---
 
 ### `DELETE /communities/{community_id}`
+
 Soft-delete a community.
 
 **Roles:** Administrator
@@ -217,11 +266,13 @@ Soft-delete a community.
 ---
 
 ### `POST /communities/{community_id}/service-areas`
+
 Add a service area to a community.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 {
   "name": "string",
@@ -234,6 +285,7 @@ Add a service area to a community.
 ```
 
 **Response `201`:**
+
 ```json
 { "service_area_id": "uuid", "community_id": "uuid", "name": "string" }
 ```
@@ -241,6 +293,7 @@ Add a service area to a community.
 ---
 
 ### `GET /communities/{community_id}/service-areas`
+
 List service areas for a community.
 
 **Response `200`:** Array of service area objects.
@@ -248,6 +301,7 @@ List service areas for a community.
 ---
 
 ### `PATCH /communities/{community_id}/service-areas/{area_id}`
+
 Update a service area.
 
 **Roles:** Administrator, Operations Manager
@@ -257,6 +311,7 @@ Update a service area.
 ---
 
 ### `DELETE /communities/{community_id}/service-areas/{area_id}`
+
 Soft-delete a service area.
 
 **Roles:** Administrator
@@ -268,18 +323,27 @@ Soft-delete a service area.
 ## 3. Group Leader Bindings
 
 ### `POST /communities/{community_id}/leader-binding`
+
 Bind (or replace) the active group leader for a community. Atomically deactivates any existing binding.
 
 **Roles:** Administrator
 
 **Request:**
+
 ```json
 { "user_id": "uuid (must have role=Group Leader)" }
 ```
 
 **Response `201`:**
+
 ```json
-{ "binding_id": "uuid", "community_id": "uuid", "user_id": "uuid", "active": true, "bound_at": "timestamp" }
+{
+  "binding_id": "uuid",
+  "community_id": "uuid",
+  "user_id": "uuid",
+  "active": true,
+  "bound_at": "timestamp"
+}
 ```
 
 **Errors:** `404 user_not_found`, `422 user_not_group_leader`
@@ -287,6 +351,7 @@ Bind (or replace) the active group leader for a community. Atomically deactivate
 ---
 
 ### `DELETE /communities/{community_id}/leader-binding`
+
 Deactivate the current group leader binding.
 
 **Roles:** Administrator
@@ -296,6 +361,7 @@ Deactivate the current group leader binding.
 ---
 
 ### `GET /communities/{community_id}/leader-binding/history`
+
 View all past bindings (audit).
 
 **Roles:** Administrator, Operations Manager
@@ -307,11 +373,13 @@ View all past bindings (audit).
 ## 4. Commission Rules & Settlement
 
 ### `POST /communities/{community_id}/commission-rules`
+
 Create a commission rule for a product category within a community.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 {
   "product_category": "string (optional; omit for community default)",
@@ -325,13 +393,23 @@ Create a commission rule for a product category within a community.
 **Validation:** `0 ≤ floor ≤ rate ≤ ceiling ≤ 15.0`
 
 **Response `201`:**
+
 ```json
-{ "rule_id": "uuid", "community_id": "uuid", "product_category": "string|null", "rate": 6.0, "floor": 0.0, "ceiling": 15.0, "settlement_cycle": "weekly" }
+{
+  "rule_id": "uuid",
+  "community_id": "uuid",
+  "product_category": "string|null",
+  "rate": 6.0,
+  "floor": 0.0,
+  "ceiling": 15.0,
+  "settlement_cycle": "weekly"
+}
 ```
 
 ---
 
 ### `GET /communities/{community_id}/commission-rules`
+
 List all commission rules for a community. Category-level rules are shown alongside the community default.
 
 **Roles:** Administrator, Operations Manager, Group Leader (own community only)
@@ -339,6 +417,7 @@ List all commission rules for a community. Category-level rules are shown alongs
 **Response `200`:** Array of rule objects.
 
 **Resolution precedence (used by settlements):**
+
 - `category_rule` for matching product category
 - else community default rule (`product_category = null`)
 - else system default `6.0%`
@@ -346,6 +425,7 @@ List all commission rules for a community. Category-level rules are shown alongs
 ---
 
 ### `PATCH /communities/{community_id}/commission-rules/{rule_id}`
+
 Update a commission rule (rate, floor, ceiling, cycle). Does not affect already-run settlements.
 
 **Roles:** Administrator, Operations Manager
@@ -355,6 +435,7 @@ Update a commission rule (rate, floor, ceiling, cycle). Does not affect already-
 ---
 
 ### `DELETE /communities/{community_id}/commission-rules/{rule_id}`
+
 Remove a commission rule. Community default cannot be deleted if settlements are pending.
 
 **Roles:** Administrator
@@ -364,11 +445,13 @@ Remove a commission rule. Community default cannot be deleted if settlements are
 ---
 
 ### `POST /settlements`
+
 Initiate a settlement run.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 {
   "community_id": "uuid",
@@ -379,6 +462,7 @@ Initiate a settlement run.
 ```
 
 **Response `201`:**
+
 ```json
 {
   "settlement_id": "uuid",
@@ -396,6 +480,7 @@ Initiate a settlement run.
 ---
 
 ### `GET /settlements/{settlement_id}`
+
 Get settlement detail.
 
 **Roles:** Administrator, Operations Manager, Group Leader (own community)
@@ -405,18 +490,26 @@ Get settlement detail.
 ---
 
 ### `POST /settlements/{settlement_id}/disputes`
+
 File a dispute against a settlement (within 2-day dispute window).
 
 **Roles:** Administrator, Operations Manager, Group Leader (own community only)
 
 **Request:**
+
 ```json
-{ "reason": "string", "disputed_amount": 0.00 }
+{ "reason": "string", "disputed_amount": 0.0 }
 ```
 
 **Response `201`:**
+
 ```json
-{ "dispute_id": "uuid", "settlement_id": "uuid", "status": "open", "created_at": "timestamp" }
+{
+  "dispute_id": "uuid",
+  "settlement_id": "uuid",
+  "status": "open",
+  "created_at": "timestamp"
+}
 ```
 
 **Errors:** `422 dispute_window_expired`
@@ -424,11 +517,13 @@ File a dispute against a settlement (within 2-day dispute window).
 ---
 
 ### `PATCH /settlements/{settlement_id}/disputes/{dispute_id}`
+
 Resolve or reject a dispute.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 { "resolution": "resolved | rejected", "notes": "string" }
 ```
@@ -438,6 +533,7 @@ Resolve or reject a dispute.
 ---
 
 ### `POST /settlements/{settlement_id}/finalize`
+
 Finalize a settlement after processing.
 
 **Roles:** Administrator, Operations Manager
@@ -445,6 +541,7 @@ Finalize a settlement after processing.
 **Response `200`:** Settlement object with `status: "completed"` and `finalized_at`.
 
 **Rules enforced server-side:**
+
 - Finalization is blocked while any linked dispute is `open`.
 - If any dispute is open, response is `422 settlement_blocked_by_open_dispute`.
 
@@ -453,11 +550,13 @@ Finalize a settlement after processing.
 ## 5. Catalog & Search
 
 ### `POST /products`
+
 Create a product.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 {
   "sku": "string (unique)",
@@ -465,7 +564,7 @@ Create a product.
   "brand": "string",
   "category": "string",
   "description": "string (Markdown)",
-  "price_usd": 0.00,
+  "price_usd": 0.0,
   "attributes": [{ "key": "string", "value": "string" }],
   "tags": ["string"]
 }
@@ -476,6 +575,7 @@ Create a product.
 ---
 
 ### `GET /products/{product_id}`
+
 Get a product.
 
 **Roles:** All authenticated
@@ -485,6 +585,7 @@ Get a product.
 ---
 
 ### `PATCH /products/{product_id}`
+
 Update product fields.
 
 **Roles:** Administrator, Operations Manager
@@ -494,6 +595,7 @@ Update product fields.
 ---
 
 ### `DELETE /products/{product_id}`
+
 Soft-delete a product.
 
 **Roles:** Administrator
@@ -503,6 +605,7 @@ Soft-delete a product.
 ---
 
 ### `GET /search/products`
+
 Full-text product search with filters.
 
 **Roles:** All authenticated
@@ -520,17 +623,21 @@ Full-text product search with filters.
 | `page_size` | int | Default 20, max 100 |
 
 **Response `200`:**
+
 ```json
 {
   "total": 320,
   "page": 1,
   "page_size": 20,
-  "items": [ /* product objects */ ],
+  "items": [
+    /* product objects */
+  ],
   "zero_result_guidance": null
 }
 ```
 
 **Zero-result response** (when `total=0`):
+
 ```json
 {
   "total": 0,
@@ -547,6 +654,7 @@ Search queries are logged to `SearchLogs` for the authenticated user (capped at 
 ---
 
 ### `GET /search/autocomplete`
+
 Autocomplete suggestions for a partial query.
 
 **Roles:** All authenticated
@@ -554,6 +662,7 @@ Autocomplete suggestions for a partial query.
 **Query params:** `?q=par`
 
 **Response `200`:**
+
 ```json
 { "suggestions": ["partial match 1", "partial match 2"] }
 ```
@@ -561,11 +670,13 @@ Autocomplete suggestions for a partial query.
 ---
 
 ### `GET /search/trending`
+
 Top trending search terms in the last 7 days (frequency × recency-weighted score).
 
 **Roles:** All authenticated
 
 **Response `200`:**
+
 ```json
 { "trending": [{ "term": "string", "score": 1.23 }] }
 ```
@@ -573,11 +684,13 @@ Top trending search terms in the last 7 days (frequency × recency-weighted scor
 ---
 
 ### `GET /search/history`
+
 Authenticated user's personal search history (max 50 entries, most recent first).
 
 **Roles:** Authenticated (own history only)
 
 **Response `200`:**
+
 ```json
 { "history": [{ "query": "string", "searched_at": "timestamp" }] }
 ```
@@ -585,6 +698,7 @@ Authenticated user's personal search history (max 50 entries, most recent first)
 ---
 
 ### `DELETE /search/history`
+
 Clear the authenticated user's search history.
 
 **Response `204`**
@@ -594,11 +708,13 @@ Clear the authenticated user's search history.
 ## 6. Inventory & Warehouse
 
 ### `POST /warehouses`
+
 Create a warehouse.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 { "name": "string", "location": "string", "notes": "string (optional)" }
 ```
@@ -608,6 +724,7 @@ Create a warehouse.
 ---
 
 ### `GET /warehouses`
+
 List warehouses.
 
 **Roles:** Administrator, Operations Manager, Staff
@@ -617,11 +734,16 @@ List warehouses.
 ---
 
 ### `POST /warehouses/{warehouse_id}/bins`
+
 Create a bin location within a warehouse.
 
 **Request:**
+
 ```json
-{ "bin_code": "string (unique within warehouse)", "description": "string (optional)" }
+{
+  "bin_code": "string (unique within warehouse)",
+  "description": "string (optional)"
+}
 ```
 
 **Response `201`:** Bin object.
@@ -629,6 +751,7 @@ Create a bin location within a warehouse.
 ---
 
 ### `GET /warehouses/{warehouse_id}/bins`
+
 List bins in a warehouse.
 
 **Response `200`:** Array of bin objects.
@@ -636,11 +759,13 @@ List bins in a warehouse.
 ---
 
 ### `POST /inventory/receipts`
+
 Record a stock receipt (inbound movement).
 
 **Roles:** Administrator, Operations Manager, Staff
 
 **Request:**
+
 ```json
 {
   "warehouse_id": "uuid",
@@ -648,11 +773,11 @@ Record a stock receipt (inbound movement).
   "sku_id": "uuid",
   "quantity": 100,
   "lot_number": "string (optional)",
-  "serial_numbers": ["string"] ,
+  "serial_numbers": ["string"],
   "barcode": "string (format-validated, optional)",
   "rfid": "string (format-validated, optional)",
   "costing_method": "fifo | moving_average (only on first transaction for SKU)",
-  "unit_cost_usd": 0.00,
+  "unit_cost_usd": 0.0,
   "occurred_at": "timestamp",
   "notes": "string (optional)"
 }
@@ -663,11 +788,13 @@ Record a stock receipt (inbound movement).
 ---
 
 ### `POST /inventory/issues`
+
 Record a stock issue (outbound movement). Resets slow-moving timer for SKU.
 
 **Roles:** Administrator, Operations Manager, Staff
 
 **Request:**
+
 ```json
 {
   "warehouse_id": "uuid",
@@ -686,11 +813,13 @@ Record a stock issue (outbound movement). Resets slow-moving timer for SKU.
 ---
 
 ### `POST /inventory/transfers`
+
 Transfer stock between warehouses or bins.
 
 **Roles:** Administrator, Operations Manager, Staff
 
 **Request:**
+
 ```json
 {
   "from_warehouse_id": "uuid",
@@ -708,11 +837,13 @@ Transfer stock between warehouses or bins.
 ---
 
 ### `POST /inventory/adjustments`
+
 Manual quantity adjustment. Always writes an audit log entry.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 {
   "warehouse_id": "uuid",
@@ -729,11 +860,13 @@ Manual quantity adjustment. Always writes an audit log entry.
 ---
 
 ### `POST /inventory/cycle-counts`
+
 Submit a cycle count.
 
 **Roles:** Administrator, Operations Manager, Staff
 
 **Request:**
+
 ```json
 {
   "warehouse_id": "uuid",
@@ -750,11 +883,18 @@ Submit a cycle count.
 ```
 
 **Response `201`:**
+
 ```json
 {
   "cycle_count_id": "uuid",
   "lines": [
-    { "sku_id": "uuid", "system_qty": 53, "counted_qty": 50, "variance": -3, "variance_reason": "string" }
+    {
+      "sku_id": "uuid",
+      "system_qty": 53,
+      "counted_qty": 50,
+      "variance": -3,
+      "variance_reason": "string"
+    }
   ]
 }
 ```
@@ -762,6 +902,7 @@ Submit a cycle count.
 ---
 
 ### `GET /inventory/stock`
+
 Query current on-hand stock.
 
 **Roles:** Administrator, Operations Manager, Staff
@@ -769,6 +910,7 @@ Query current on-hand stock.
 **Query params:** `?sku_id=&warehouse_id=&bin_id=&below_safety_stock=true&slow_moving=true`
 
 **Response `200`:**
+
 ```json
 {
   "items": [
@@ -791,11 +933,13 @@ Query current on-hand stock.
 ---
 
 ### `PATCH /products/{product_id}/safety-stock`
+
 Set safety-stock threshold for a SKU.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 { "threshold": 10 }
 ```
@@ -805,6 +949,7 @@ Set safety-stock threshold for a SKU.
 ---
 
 ### `GET /inventory/transactions`
+
 Query inventory transaction history.
 
 **Roles:** Administrator, Operations Manager, Staff
@@ -818,6 +963,7 @@ Query inventory transaction history.
 ## 7. Messaging
 
 ### WebSocket Endpoint
+
 `ws://<host>/ws/messaging`
 
 Connect with `Authorization: Bearer <token>` in the STOMP `CONNECT` frame headers.
@@ -860,6 +1006,7 @@ Note: No file bytes are stored or transmitted through messaging. Only metadata f
 ### REST Fallback (Offline Queue)
 
 ### `GET /messages`
+
 Retrieve queued (undelivered) messages for the authenticated user.
 
 **Roles:** Authenticated (own messages)
@@ -871,9 +1018,11 @@ Messages in the offline queue are retried with exponential backoff for up to 7 d
 ---
 
 ### `POST /messages/{message_id}/receipt`
+
 Confirm delivery or read status (REST fallback for STOMP receipt).
 
 **Request:**
+
 ```json
 { "status": "delivered | read" }
 ```
@@ -885,11 +1034,13 @@ Confirm delivery or read status (REST fallback for STOMP receipt).
 ## 8. Content & Templates
 
 ### `POST /content`
+
 Create a new content item (article, book, or chapter).
 
 **Roles:** Administrator, Operations Manager, Moderator
 
 **Request:**
+
 ```json
 {
   "type": "article | book | chapter",
@@ -907,6 +1058,7 @@ Create a new content item (article, book, or chapter).
 ---
 
 ### `GET /content/{content_id}`
+
 Get a content item (latest published version by default).
 
 **Query params:** `?version=3` to retrieve a specific version.
@@ -914,6 +1066,7 @@ Get a content item (latest published version by default).
 **Roles:** All authenticated
 
 **Response `200`:**
+
 ```json
 {
   "content_id": "uuid",
@@ -932,13 +1085,20 @@ Get a content item (latest published version by default).
 ---
 
 ### `PATCH /content/{content_id}`
+
 Update a content item (creates a new draft version; does not auto-publish).
 
 **Roles:** Administrator, Operations Manager, Moderator
 
 **Request:**
+
 ```json
-{ "title": "string (optional)", "body": "string (optional)", "tags": [], "categories": [] }
+{
+  "title": "string (optional)",
+  "body": "string (optional)",
+  "tags": [],
+  "categories": []
+}
 ```
 
 **Response `200`:** New draft version object.
@@ -946,6 +1106,7 @@ Update a content item (creates a new draft version; does not auto-publish).
 ---
 
 ### `POST /content/{content_id}/publish`
+
 Publish the latest draft version.
 
 **Roles:** Administrator, Operations Manager
@@ -955,11 +1116,13 @@ Publish the latest draft version.
 ---
 
 ### `POST /content/{content_id}/rollback`
+
 Roll back to a prior published version.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 { "target_version": 2 }
 ```
@@ -969,6 +1132,7 @@ Roll back to a prior published version.
 ---
 
 ### `GET /content/{content_id}/versions`
+
 List all versions of a content item.
 
 **Roles:** Administrator, Operations Manager, Moderator
@@ -978,6 +1142,7 @@ List all versions of a content item.
 ---
 
 ### `POST /content/{content_id}/attachments`
+
 Upload an attachment (local storage; max 25 MB; allowed: png, jpg, pdf, txt, md).
 
 **Roles:** Administrator, Operations Manager, Moderator
@@ -985,6 +1150,7 @@ Upload an attachment (local storage; max 25 MB; allowed: png, jpg, pdf, txt, md)
 **Request:** `multipart/form-data` with field `file`.
 
 **Response `201`:**
+
 ```json
 {
   "attachment_id": "uuid",
@@ -1002,6 +1168,7 @@ Upload an attachment (local storage; max 25 MB; allowed: png, jpg, pdf, txt, md)
 ---
 
 ### `GET /content/{content_id}/attachments`
+
 List attachments for a content item.
 
 **Response `200`:** Array of attachment objects.
@@ -1009,6 +1176,7 @@ List attachments for a content item.
 ---
 
 ### `DELETE /content/{content_id}/attachments/{attachment_id}`
+
 Remove an attachment.
 
 **Roles:** Administrator, Operations Manager
@@ -1018,16 +1186,23 @@ Remove an attachment.
 ---
 
 ### `POST /templates`
+
 Create a capture template.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 {
   "name": "string",
   "fields": [
-    { "name": "string", "type": "text | number | enum | bool | date", "enum_values": ["opt1"], "required": true }
+    {
+      "name": "string",
+      "type": "text | number | enum | bool | date",
+      "enum_values": ["opt1"],
+      "required": true
+    }
   ]
 }
 ```
@@ -1037,6 +1212,7 @@ Create a capture template.
 ---
 
 ### `GET /templates/{template_id}`
+
 Get a template (latest published version by default).
 
 **Query params:** `?version=2`
@@ -1048,11 +1224,13 @@ Get a template (latest published version by default).
 ---
 
 ### `PATCH /templates/{template_id}`
+
 Update a template (creates a new draft version; additive updates are always allowed).
 
 **Roles:** Administrator, Operations Manager
 
 **Rules enforced server-side:**
+
 - Adding new optional fields: allowed.
 - Removing or renaming fields: allowed in draft only when a migration is defined before publish.
 - Changing an existing field type: allowed in draft only when a migration is defined before publish.
@@ -1064,6 +1242,7 @@ Update a template (creates a new draft version; additive updates are always allo
 ---
 
 ### `POST /templates/{template_id}/publish`
+
 Publish a template draft.
 
 **Roles:** Administrator, Operations Manager
@@ -1073,9 +1252,11 @@ Publish a template draft.
 ---
 
 ### `POST /templates/{template_id}/rollback`
+
 Roll back to a prior published template version.
 
 **Request:**
+
 ```json
 { "target_version": 1 }
 ```
@@ -1085,6 +1266,7 @@ Roll back to a prior published template version.
 ---
 
 ### `GET /templates/{template_id}/versions`
+
 List all template versions.
 
 **Response `200`:** Array of version metadata objects.
@@ -1092,17 +1274,23 @@ List all template versions.
 ---
 
 ### `POST /templates/{template_id}/migrations`
+
 Define a field migration mapping between two versions (required for non-additive transitions before publish).
 
 **Roles:** Administrator
 
 **Request:**
+
 ```json
 {
   "from_version": 2,
   "to_version": 3,
   "field_mappings": [
-    { "from_field": "old_name", "to_field": "new_name", "transform": "identity | concat | default:<value>" }
+    {
+      "from_field": "old_name",
+      "to_field": "new_name",
+      "transform": "identity | concat | default:<value>"
+    }
   ]
 }
 ```
@@ -1114,6 +1302,7 @@ Define a field migration mapping between two versions (required for non-additive
 ## 9. Admin, Audit & Reports
 
 ### `GET /audit-log`
+
 Query the immutable audit log.
 
 **Roles:** Administrator
@@ -1121,6 +1310,7 @@ Query the immutable audit log.
 **Query params:** `?action_type=settlement|moderation|inventory&user_id=&from=&to=&page=&page_size=`
 
 **Response `200`:**
+
 ```json
 {
   "items": [
@@ -1142,11 +1332,13 @@ Query the immutable audit log.
 ---
 
 ### `POST /admin/tickets`
+
 Create an administrative ticket (moderation action or report).
 
 **Roles:** Administrator, Operations Manager, Moderator
 
 **Request:**
+
 ```json
 {
   "type": "moderation | report | other",
@@ -1162,6 +1354,7 @@ Create an administrative ticket (moderation action or report).
 ---
 
 ### `GET /admin/tickets`
+
 List tickets.
 
 **Roles:** Administrator, Operations Manager, Moderator (own tickets)
@@ -1173,11 +1366,13 @@ List tickets.
 ---
 
 ### `PATCH /admin/tickets/{ticket_id}`
+
 Update ticket status or add resolution notes.
 
 **Roles:** Administrator, Operations Manager
 
 **Request:**
+
 ```json
 { "status": "closed | in_progress", "resolution_notes": "string" }
 ```
@@ -1187,6 +1382,7 @@ Update ticket status or add resolution notes.
 ---
 
 ### `GET /admin/reports/group-leader-performance`
+
 Group leader performance metrics scoped to their communities.
 
 **Roles:** Administrator, Operations Manager; Group Leader (own community only).
@@ -1194,6 +1390,7 @@ Group leader performance metrics scoped to their communities.
 **Query params:** `?community_id=&from=&to=`
 
 **Response `200`:**
+
 ```json
 {
   "community_id": "uuid",
@@ -1210,11 +1407,13 @@ Group leader performance metrics scoped to their communities.
 ## 10. Observability
 
 ### `GET /health`
+
 Liveness probe.
 
 **Roles:** Public
 
 **Response `200`:**
+
 ```json
 { "status": "ok", "version": "string", "db": "ok | degraded" }
 ```
@@ -1222,6 +1421,7 @@ Liveness probe.
 ---
 
 ### `GET /health/ready`
+
 Readiness probe (checks DB connectivity and background job queue).
 
 **Response `200`:** `{ "status": "ready" }` or `503` with detail.

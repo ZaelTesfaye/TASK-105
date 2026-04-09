@@ -17,8 +17,9 @@ import sys
 from sqlalchemy.engine.url import make_url
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
+_BACKEND_DIR = os.path.join(_REPO_ROOT, "backend")
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
 
 
 def _sqlite_path() -> str | None:

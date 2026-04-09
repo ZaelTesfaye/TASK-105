@@ -18,6 +18,8 @@ RUN mkdir -p data/attachments data/keys data/logs
 
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app/backend
+ENV FLASK_APP=app:create_app
 
 EXPOSE 5000
 

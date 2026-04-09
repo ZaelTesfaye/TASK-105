@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure PYTHONPATH includes backend/ so `from app import ...` works
+export PYTHONPATH="${PYTHONPATH:-/app/backend}"
+
 # Ensure writable layout inside the mounted ./data volume (keys, logs, attachments, DB dir)
 KEY_PATH="${FERNET_KEY_PATH:-data/keys/secret.key}"
 LOG_PATH="${LOG_FILE:-data/logs/app.jsonl}"

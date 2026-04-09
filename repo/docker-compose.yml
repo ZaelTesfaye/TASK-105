@@ -12,6 +12,8 @@ services:
       - LOG_FILE=/app/data/logs/app.jsonl
       - ATTACHMENT_DIR=/app/data/attachments
       - JOBS_ENABLED=true
+      - ENABLE_TLS=${ENABLE_TLS:-false}
+      - PYTHONPATH=/app/backend
     volumes:
       # Mount the whole data directory (not individual files). If the host path
       # ./data/db.sqlite3 does not exist, Docker would create a *directory*

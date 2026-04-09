@@ -65,7 +65,7 @@ with open('$REPO/data/keys/secret.key', 'wb') as f:
 fi
 
 # ── Environment ──────────────────────────────────────────────
-export PYTHONPATH="$REPO"
+export PYTHONPATH="$REPO/backend"
 export FERNET_KEY_PATH="$REPO/data/keys/secret.key"
 export LOG_FILE="$REPO/data/logs/app.jsonl"
 export ATTACHMENT_DIR="$REPO/data/attachments"
@@ -75,10 +75,10 @@ cd "$ROOT"
 # ── Run unit tests ───────────────────────────────────────────
 echo ""
 echo "--------------------------------------------------------"
-echo "  PHASE 1 — Unit Tests  (unit_tests/)"
+echo "  PHASE 1 — Unit Tests  (backend/tests/unit/)"
 echo "--------------------------------------------------------"
 UNIT_RESULT=0
-python -m pytest unit_tests/ \
+python -m pytest backend/tests/unit/ \
     -v \
     --tb=short \
     --no-header \
@@ -88,10 +88,10 @@ python -m pytest unit_tests/ \
 # ── Run API functional tests ─────────────────────────────────
 echo ""
 echo "--------------------------------------------------------"
-echo "  PHASE 2 — API Functional Tests  (API_tests/)"
+echo "  PHASE 2 — API Functional Tests  (backend/tests/api/)"
 echo "--------------------------------------------------------"
 API_RESULT=0
-python -m pytest API_tests/ \
+python -m pytest backend/tests/api/ \
     -v \
     --tb=short \
     --no-header \
@@ -101,27 +101,41 @@ python -m pytest API_tests/ \
 # ── Run integration / job tests ──────────────────────────────────────────────
 echo ""
 echo "--------------------------------------------------------"
-echo "  PHASE 3 — Integration/Job Tests  (tests/)"
+echo "  PHASE 3 — Integration/Job Tests  (backend/tests/integration/)"
 echo "--------------------------------------------------------"
 JOBS_RESULT=0
-python -m pytest tests/ \
+python -m pytest backend/tests/integration/ \
     -v \
     --tb=short \
     --no-header \
     -q \
     2>&1 || JOBS_RESULT=$?
 
+# ── Coverage report ──────────────────────────────────────────
+echo ""
+echo "--------------------------------------------------------"
+echo "  PHASE 4 — Coverage Report"
+echo "--------------------------------------------------------"
+COV_RESULT=0
+python -m pytest backend/tests/unit/ backend/tests/api/ backend/tests/integration/ \
+    --cov=app \
+    --cov-report=term-missing:skip-covered \
+    --cov-report=html:htmlcov \
+    --tb=no \
+    -q \
+    2>&1 || COV_RESULT=$?
+
 # ── Aggregate summary ────────────────────────────────────────
 echo ""
 echo "========================================================"
 echo "  SUMMARY"
 echo "========================================================"
-python -m pytest unit_tests/ API_tests/ tests/ \
-    --tb=no \
-    -q \
-    2>&1 | tail -5
-
 echo ""
+info "Unit tests:         $([ $UNIT_RESULT -eq 0 ] && echo 'PASSED' || echo 'FAILED')"
+info "API tests:          $([ $API_RESULT -eq 0 ] && echo 'PASSED' || echo 'FAILED')"
+info "Integration tests:  $([ $JOBS_RESULT -eq 0 ] && echo 'PASSED' || echo 'FAILED')"
+echo ""
+
 if [ "$UNIT_RESULT" -eq 0 ] && [ "$API_RESULT" -eq 0 ] && [ "$JOBS_RESULT" -eq 0 ]; then
     ok "All tests passed."
     exit 0
