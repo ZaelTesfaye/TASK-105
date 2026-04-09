@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 
 import bleach
+from werkzeug.utils import secure_filename
 
 from flask import current_app
 from app.extensions import db
@@ -201,8 +202,16 @@ class ContentService:
             raise AppError("unsupported_media_type", f"Allowed types: {', '.join(allowed_mime)}", status_code=415)
 
         sha256 = hashlib.sha256(data).hexdigest()
-        filename = f"{sha256}_{file.filename}"
+        safe_name = secure_filename(file.filename)
+        if not safe_name:
+            raise AppError("invalid_filename", "Filename is invalid or empty", status_code=400)
+        filename = f"{sha256}_{safe_name}"
         local_path = os.path.join(attach_dir, filename)
+        # Guard against path traversal: resolved path must stay within ATTACHMENT_DIR
+        real_dir = os.path.realpath(attach_dir)
+        real_path = os.path.realpath(local_path)
+        if not real_path.startswith(real_dir + os.sep) and real_path != real_dir:
+            raise AppError("invalid_filename", "Filename resolves outside the attachment directory", status_code=400)
         os.makedirs(attach_dir, exist_ok=True)
         with open(local_path, "wb") as f:
             f.write(data)

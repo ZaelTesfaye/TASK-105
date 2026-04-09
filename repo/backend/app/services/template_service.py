@@ -5,14 +5,19 @@ Enforces schema evolution rules:
   - All other structural changes require a TemplateMigration record before publish.
   - Migration records must cover every removed/changed field with a deterministic transform.
 """
+import hashlib
 import json
+import os
 from datetime import datetime, timezone
 
+from werkzeug.utils import secure_filename
+
+from flask import current_app
 from app.extensions import db
-from app.models.content import CaptureTemplate, TemplateVersion, TemplateMigration
+from app.models.content import CaptureTemplate, TemplateVersion, TemplateMigration, Attachment
 from app.models.user import User
 from app.models.audit import AuditLog
-from app.errors import NotFoundError, UnprocessableError
+from app.errors import NotFoundError, AppError, UnprocessableError
 from flask import g
 
 
@@ -279,3 +284,65 @@ class TemplateService:
         db.session.add(migration)
         db.session.commit()
         return migration
+
+    # --- Attachments ---
+
+    @staticmethod
+    def add_attachment(template_id: str, file, actor: User) -> Attachment:
+        TemplateService._get_or_404(template_id)
+        if file is None:
+            raise AppError("file_required", "No file provided", status_code=400)
+
+        max_bytes = current_app.config["ATTACHMENT_MAX_BYTES"]
+        allowed_mime = current_app.config["ATTACHMENT_ALLOWED_MIME"]
+        attach_dir = current_app.config["ATTACHMENT_DIR"]
+
+        data = file.read()
+        if len(data) > max_bytes:
+            raise AppError("file_too_large", "File exceeds 25 MB limit", status_code=413)
+
+        mime = file.mimetype or "application/octet-stream"
+        if mime not in allowed_mime:
+            raise AppError("unsupported_media_type", f"Allowed types: {', '.join(allowed_mime)}", status_code=415)
+
+        sha256 = hashlib.sha256(data).hexdigest()
+        safe_name = secure_filename(file.filename)
+        if not safe_name:
+            raise AppError("invalid_filename", "Filename is invalid or empty", status_code=400)
+        filename = f"{sha256}_{safe_name}"
+        local_path = os.path.join(attach_dir, filename)
+        # Guard against path traversal
+        real_dir = os.path.realpath(attach_dir)
+        real_path = os.path.realpath(local_path)
+        if not real_path.startswith(real_dir + os.sep) and real_path != real_dir:
+            raise AppError("invalid_filename", "Filename resolves outside the attachment directory", status_code=400)
+        os.makedirs(attach_dir, exist_ok=True)
+        with open(local_path, "wb") as f:
+            f.write(data)
+
+        attachment = Attachment(
+            template_id=template_id,
+            filename=file.filename,
+            mime_type=mime,
+            size_bytes=len(data),
+            sha256=sha256,
+            local_path=local_path,
+            created_by=actor.user_id,
+        )
+        db.session.add(attachment)
+        db.session.commit()
+        return attachment
+
+    @staticmethod
+    def list_attachments(template_id: str) -> list:
+        TemplateService._get_or_404(template_id)
+        attachments = Attachment.query.filter_by(template_id=template_id, deleted_at=None).all()
+        return [a.to_dict() for a in attachments]
+
+    @staticmethod
+    def delete_attachment(template_id: str, attachment_id: str) -> None:
+        att = db.session.get(Attachment, attachment_id)
+        if att is None or str(att.template_id) != template_id:
+            raise NotFoundError("attachment")
+        att.deleted_at = datetime.now(timezone.utc)
+        db.session.commit()

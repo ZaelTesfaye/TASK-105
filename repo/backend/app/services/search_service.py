@@ -80,6 +80,9 @@ class SearchService:
                     attr_alias, Product.product_id == attr_alias.product_id
                 ).filter(attr_alias.key == attr_key, attr_alias.value == attr_value)
 
+        # Deduplicate rows produced by tag/attribute joins
+        query = query.distinct()
+
         sort = params.get("sort", "new_arrivals")
         sort_map = {
             "sales_volume": Product.sales_volume.desc(),

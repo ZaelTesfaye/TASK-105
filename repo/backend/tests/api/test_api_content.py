@@ -454,3 +454,192 @@ def test_admin_can_list_template_versions(client, auth_headers):
     resp = client.get(f"{BASE}/templates/{tid}/versions", headers=auth_headers)
     assert resp.status_code == 200
     assert isinstance(resp.json, list)
+
+
+# ---------------------------------------------------------------------------
+# TEST-01: Attachment path traversal
+# ---------------------------------------------------------------------------
+
+def test_attachment_traversal_dotdot_safe(client, auth_headers):
+    """Uploading ../evil.txt writes the file safely inside ATTACHMENT_DIR, not above it."""
+    import os
+    content = _create_content(client, auth_headers)
+    cid = content["content_id"]
+    resp = _upload_attachment(client, auth_headers, cid,
+                              data=b"evil", filename="../evil.txt", mime="text/plain")
+    # secure_filename sanitizes the name; upload succeeds but file stays inside attach dir
+    assert resp.status_code == 201
+    with client.application.app_context():
+        from flask import current_app
+        from app.models.content import Attachment as AttModel
+        att = AttModel.query.get(resp.json["attachment_id"])
+        attach_dir = os.path.realpath(current_app.config["ATTACHMENT_DIR"])
+        assert os.path.realpath(att.local_path).startswith(attach_dir)
+
+
+def test_attachment_traversal_deep_dotdot_safe(client, auth_headers):
+    """Uploading ../../etc/passwd is sanitized; file stays inside ATTACHMENT_DIR."""
+    import os
+    content = _create_content(client, auth_headers)
+    cid = content["content_id"]
+    resp = _upload_attachment(client, auth_headers, cid,
+                              data=b"evil", filename="../../etc/passwd", mime="text/plain")
+    assert resp.status_code == 201
+    with client.application.app_context():
+        from flask import current_app
+        from app.models.content import Attachment as AttModel
+        att = AttModel.query.get(resp.json["attachment_id"])
+        attach_dir = os.path.realpath(current_app.config["ATTACHMENT_DIR"])
+        assert os.path.realpath(att.local_path).startswith(attach_dir)
+
+
+def test_attachment_traversal_null_byte_safe(client, auth_headers):
+    """Filename with null bytes is sanitized and file stays inside ATTACHMENT_DIR."""
+    import os
+    content = _create_content(client, auth_headers)
+    cid = content["content_id"]
+    resp = _upload_attachment(client, auth_headers, cid,
+                              data=b"evil", filename="test\x00.txt", mime="text/plain")
+    assert resp.status_code in (201, 400)
+    if resp.status_code == 201:
+        with client.application.app_context():
+            from flask import current_app
+            from app.models.content import Attachment as AttModel
+            att = AttModel.query.get(resp.json["attachment_id"])
+            attach_dir = os.path.realpath(current_app.config["ATTACHMENT_DIR"])
+            assert os.path.realpath(att.local_path).startswith(attach_dir)
+
+
+def test_attachment_empty_filename_rejected(client, auth_headers):
+    """Uploading a file with an empty or all-special-char filename returns 400."""
+    content = _create_content(client, auth_headers)
+    cid = content["content_id"]
+    resp = _upload_attachment(client, auth_headers, cid,
+                              data=b"data", filename="...", mime="text/plain")
+    assert resp.status_code == 400
+    assert resp.json["error"] == "invalid_filename"
+
+
+# ---------------------------------------------------------------------------
+# TEST-02: Template attachment API
+# ---------------------------------------------------------------------------
+
+def _upload_template_attachment(client, headers, template_id, data=b"hello", filename="test.txt", mime="text/plain"):
+    return client.post(
+        f"{BASE}/templates/{template_id}/attachments",
+        data={"file": (io.BytesIO(data), filename, mime)},
+        headers=headers,
+        content_type="multipart/form-data",
+    )
+
+
+def test_template_attachment_upload_201(client, auth_headers):
+    """POST /templates/{id}/attachments returns 201."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    resp = _upload_template_attachment(client, auth_headers, tid)
+    assert resp.status_code == 201
+    data = resp.json
+    assert "attachment_id" in data
+    assert "sha256" in data
+    assert len(data["sha256"]) == 64
+    assert "mime_type" in data
+    assert "size_bytes" in data
+
+
+def test_template_attachment_list_200(client, auth_headers):
+    """GET /templates/{id}/attachments returns uploaded files."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    _upload_template_attachment(client, auth_headers, tid)
+    resp = client.get(f"{BASE}/templates/{tid}/attachments", headers=auth_headers)
+    assert resp.status_code == 200
+    assert isinstance(resp.json, list)
+    assert len(resp.json) >= 1
+
+
+def test_template_attachment_delete_204(client, auth_headers):
+    """DELETE /templates/{id}/attachments/{att_id} returns 204."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    att_id = _upload_template_attachment(client, auth_headers, tid).json["attachment_id"]
+    resp = client.delete(f"{BASE}/templates/{tid}/attachments/{att_id}", headers=auth_headers)
+    assert resp.status_code == 204
+    # Verify no longer in listing
+    list_resp = client.get(f"{BASE}/templates/{tid}/attachments", headers=auth_headers)
+    assert not any(a["attachment_id"] == att_id for a in list_resp.json)
+
+
+def test_template_attachment_member_forbidden(client, auth_headers, member_headers):
+    """Member cannot upload template attachments (403)."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    resp = _upload_template_attachment(client, member_headers, tid)
+    assert resp.status_code == 403
+
+
+def test_template_attachment_oversized_413(client, auth_headers):
+    """Template attachment >25MB returns 413."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    big_data = b"x" * (26 * 1024 * 1024)
+    resp = _upload_template_attachment(client, auth_headers, tid,
+                                       data=big_data, filename="big.txt", mime="text/plain")
+    assert resp.status_code == 413
+    assert resp.json["error"] == "file_too_large"
+
+
+def test_template_attachment_invalid_mime_415(client, auth_headers):
+    """Template attachment with disallowed MIME type returns 415."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    resp = _upload_template_attachment(client, auth_headers, tid,
+                                       data=b"MZ", filename="mal.exe",
+                                       mime="application/x-msdownload")
+    assert resp.status_code == 415
+    assert resp.json["error"] == "unsupported_media_type"
+
+
+# ---------------------------------------------------------------------------
+# M-02: Template field validation
+# ---------------------------------------------------------------------------
+
+def test_create_template_invalid_field_type_400(client, auth_headers):
+    """POST /templates with invalid field type returns 400."""
+    resp = client.post(f"{BASE}/templates", json={
+        "name": "Bad Template",
+        "fields": [{"name": "f1", "type": "INVALID_TYPE", "required": False}],
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+
+
+def test_create_template_missing_field_name_400(client, auth_headers):
+    """POST /templates with fields missing name returns 400."""
+    resp = client.post(f"{BASE}/templates", json={
+        "name": "Bad Template",
+        "fields": [{"type": "text", "required": False}],
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+
+
+def test_update_template_invalid_field_type_400(client, auth_headers):
+    """PATCH /templates/{id} with invalid field type returns 400."""
+    tmpl = _create_template(client, auth_headers)
+    tid = tmpl["template_id"]
+    resp = client.patch(f"{BASE}/templates/{tid}", json={
+        "fields": [{"name": "bad", "type": "NOPE"}],
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"
+
+
+def test_create_template_enum_requires_list(client, auth_headers):
+    """POST /templates with type=enum but no enum list returns 400."""
+    resp = client.post(f"{BASE}/templates", json={
+        "name": "Enum Template",
+        "fields": [{"name": "color", "type": "enum", "required": False}],
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.json["error"] == "validation_error"

@@ -226,3 +226,40 @@ def test_update_product_invalid_price_400(client, auth_headers):
     }, headers=auth_headers)
     assert resp.status_code == 400
     assert resp.json["error"] == "validation_error"
+
+
+# ---------------------------------------------------------------------------
+# TEST-03: Multi-tag search produces no duplicate rows
+# ---------------------------------------------------------------------------
+
+def test_search_multi_tag_no_duplicates(client, auth_headers):
+    """Products with overlapping tags must not appear as duplicate items in search results."""
+    suffix = uuid.uuid4().hex[:6]
+    # Create products with overlapping tags
+    p1 = _create_product(client, auth_headers,
+                         name=f"MultiTag1_{suffix}",
+                         tags=["alpha", "beta", "gamma"])
+    assert p1.status_code == 201
+    p1_id = p1.json["product_id"]
+
+    p2 = _create_product(client, auth_headers,
+                         name=f"MultiTag2_{suffix}",
+                         tags=["alpha", "beta"])
+    assert p2.status_code == 201
+    p2_id = p2.json["product_id"]
+
+    # Search with multiple matching tags
+    resp = client.get(f"{BASE}/search/products?tags=alpha,beta", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json
+    item_ids = [item["product_id"] for item in data["items"]]
+
+    # No duplicates: each product_id appears at most once
+    assert len(item_ids) == len(set(item_ids)), f"Duplicate product IDs in results: {item_ids}"
+
+    # Both products should appear
+    assert p1_id in item_ids
+    assert p2_id in item_ids
+
+    # total should match the actual item count for a single-page result
+    assert data["total"] == len(data["items"])
