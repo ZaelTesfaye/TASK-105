@@ -1,0 +1,3954 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "W2T105 API",
+    "version": "1.0.0",
+    "description": "Community commerce platform API \u00e2\u20ac\u201d authentication, user management, communities, catalog, inventory, commissions, messaging, content, and templates."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Root"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "password": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "Administrator",
+              "Operations Manager",
+              "Moderator",
+              "Group Leader",
+              "Staff",
+              "Member"
+            ]
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "ProductAttribute": {
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateProduct": {
+        "type": "object",
+        "required": [
+          "sku",
+          "name",
+          "brand",
+          "category",
+          "price_usd"
+        ],
+        "properties": {
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "brand": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          },
+          "price_usd": {
+            "type": "number",
+            "minimum": 0
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductAttribute"
+            },
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        }
+      },
+      "UpdateProduct": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "brand": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "description": {
+            "type": "string"
+          },
+          "price_usd": {
+            "type": "number",
+            "minimum": 0
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductAttribute"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price_usd": {
+            "type": "number"
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductAttribute"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateWarehouse": {
+        "type": "object",
+        "required": [
+          "name",
+          "location"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "community_id": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Warehouse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "community_id": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CreateBin": {
+        "type": "object",
+        "required": [
+          "bin_code"
+        ],
+        "properties": {
+          "bin_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Bin": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string"
+          },
+          "bin_code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Receipt": {
+        "type": "object",
+        "required": [
+          "sku_id",
+          "warehouse_id",
+          "quantity"
+        ],
+        "properties": {
+          "sku_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bin_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "lot_number": {
+            "type": "string",
+            "nullable": true
+          },
+          "costing_method": {
+            "type": "string",
+            "enum": [
+              "fifo",
+              "moving_average"
+            ],
+            "default": "fifo"
+          },
+          "unit_cost_usd": {
+            "type": "number",
+            "default": 0
+          },
+          "barcode": {
+            "type": "string",
+            "nullable": true
+          },
+          "rfid": {
+            "type": "string",
+            "nullable": true
+          },
+          "serial_numbers": {
+            "nullable": true
+          },
+          "occurred_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Issue": {
+        "type": "object",
+        "required": [
+          "sku_id",
+          "warehouse_id",
+          "quantity"
+        ],
+        "properties": {
+          "sku_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bin_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "lot_number": {
+            "type": "string",
+            "nullable": true
+          },
+          "barcode": {
+            "type": "string",
+            "nullable": true
+          },
+          "rfid": {
+            "type": "string",
+            "nullable": true
+          },
+          "serial_numbers": {
+            "nullable": true
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurred_at": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Transfer": {
+        "type": "object",
+        "required": [
+          "sku_id",
+          "from_warehouse_id",
+          "to_warehouse_id",
+          "quantity"
+        ],
+        "properties": {
+          "sku_id": {
+            "type": "string"
+          },
+          "from_warehouse_id": {
+            "type": "string"
+          },
+          "to_warehouse_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "from_bin_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "to_bin_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "lot_number": {
+            "type": "string",
+            "nullable": true
+          },
+          "barcode": {
+            "type": "string",
+            "nullable": true
+          },
+          "rfid": {
+            "type": "string",
+            "nullable": true
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurred_at": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Adjustment": {
+        "type": "object",
+        "required": [
+          "sku_id",
+          "warehouse_id",
+          "quantity_delta"
+        ],
+        "properties": {
+          "sku_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string"
+          },
+          "quantity_delta": {
+            "type": "integer"
+          },
+          "bin_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurred_at": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CycleCountLine": {
+        "type": "object",
+        "required": [
+          "sku_id",
+          "counted_qty"
+        ],
+        "properties": {
+          "sku_id": {
+            "type": "string"
+          },
+          "bin_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "counted_qty": {
+            "type": "integer"
+          },
+          "variance_reason": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CycleCount": {
+        "type": "object",
+        "required": [
+          "warehouse_id",
+          "counted_at",
+          "lines"
+        ],
+        "properties": {
+          "warehouse_id": {
+            "type": "string"
+          },
+          "counted_at": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CycleCountLine"
+            }
+          }
+        }
+      },
+      "CreateCommunity": {
+        "type": "object",
+        "required": [
+          "name",
+          "address_line1",
+          "city",
+          "state",
+          "zip"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "address_line1": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "address_line2": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          },
+          "zip": {
+            "type": "string",
+            "pattern": "^\\d{5}(-\\d{4})?$"
+          },
+          "service_hours": {
+            "type": "object",
+            "default": {}
+          },
+          "fulfillment_scope": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
+      "UpdateCommunity": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "address_line1": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "address_line2": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          },
+          "zip": {
+            "type": "string",
+            "pattern": "^\\d{5}(-\\d{4})?$"
+          },
+          "service_hours": {
+            "type": "object"
+          },
+          "fulfillment_scope": {
+            "type": "string"
+          }
+        }
+      },
+      "Community": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address_line1": {
+            "type": "string"
+          },
+          "address_line2": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "zip": {
+            "type": "string"
+          },
+          "service_hours": {
+            "type": "object"
+          },
+          "fulfillment_scope": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateServiceArea": {
+        "type": "object",
+        "required": [
+          "name",
+          "address_line1",
+          "city",
+          "state",
+          "zip"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "address_line1": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          },
+          "zip": {
+            "type": "string",
+            "pattern": "^\\d{5}(-\\d{4})?$"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateServiceArea": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "address_line1": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          },
+          "zip": {
+            "type": "string",
+            "pattern": "^\\d{5}(-\\d{4})?$"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ServiceArea": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "community_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address_line1": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "zip": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "TemplateField": {
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "number",
+              "textarea",
+              "date",
+              "boolean",
+              "enum",
+              "select"
+            ]
+          },
+          "required": {
+            "type": "boolean",
+            "default": false
+          },
+          "enum": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "CreateTemplate": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateField"
+            },
+            "default": []
+          }
+        }
+      },
+      "UpdateTemplate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateField"
+            }
+          }
+        }
+      },
+      "PaginatedParams": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "default": 20,
+            "maximum": 100
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Liveness and readiness probes"
+    },
+    {
+      "name": "Auth",
+      "description": "Authentication \u00e2\u20ac\u201d register, login, logout"
+    },
+    {
+      "name": "Users",
+      "description": "User management"
+    },
+    {
+      "name": "Communities",
+      "description": "Communities, service areas, leader bindings, and memberships"
+    },
+    {
+      "name": "Catalog",
+      "description": "Product catalog management"
+    },
+    {
+      "name": "Search",
+      "description": "Product search, autocomplete, trending, and history"
+    },
+    {
+      "name": "Inventory",
+      "description": "Warehouses, bins, stock transactions, and queries"
+    },
+    {
+      "name": "Commission",
+      "description": "Commission rules, settlements, disputes"
+    },
+    {
+      "name": "Messaging",
+      "description": "Asynchronous message queue"
+    },
+    {
+      "name": "Content",
+      "description": "CMS content with versioning and attachments"
+    },
+    {
+      "name": "Templates",
+      "description": "Content templates with versioning, migrations, and attachments"
+    },
+    {
+      "name": "Admin",
+      "description": "Audit log, tickets, and reports"
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Register a new user",
+        "operationId": "register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Log in and receive a bearer token",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Invalidate the current token",
+        "operationId": "logout",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Logged out"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List users (Admin / Ops Manager)",
+        "operationId": "listUsers",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Requires Administrator role"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated user list"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get a user by ID",
+        "operationId": "getUser",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Update a user",
+        "operationId": "updateUser",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Soft-delete a user (Admin only)",
+        "operationId": "deleteUser",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/password": {
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Change a user's password",
+        "operationId": "changePassword",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "current_password": {
+                    "type": "string"
+                  },
+                  "new_password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed"
+          }
+        }
+      }
+    },
+    "/api/v1/communities": {
+      "post": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Create a community",
+        "operationId": "createCommunity",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommunity"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Community created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Community"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "List communities",
+        "operationId": "listCommunities",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated community list"
+          }
+        }
+      }
+    },
+    "/api/v1/communities/{community_id}": {
+      "get": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Get community detail",
+        "operationId": "getCommunity",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Community detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Community"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Update a community",
+        "operationId": "updateCommunity",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommunity"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated community",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Community"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Delete a community (Admin only)",
+        "operationId": "deleteCommunity",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/communities/{community_id}/service-areas": {
+      "post": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Add a service area",
+        "operationId": "createServiceArea",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServiceArea"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Service area created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceArea"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "List service areas for a community",
+        "operationId": "listServiceAreas",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service area list"
+          }
+        }
+      }
+    },
+    "/api/v1/communities/{community_id}/service-areas/{area_id}": {
+      "patch": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Update a service area",
+        "operationId": "updateServiceArea",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "area_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateServiceArea"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated service area",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceArea"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Delete a service area (Admin only)",
+        "operationId": "deleteServiceArea",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "area_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/communities/{community_id}/leader-binding": {
+      "post": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Bind a group leader to a community (Admin only)",
+        "operationId": "createLeaderBinding",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user_id"
+                ],
+                "properties": {
+                  "user_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Binding created"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Remove the leader binding (Admin only)",
+        "operationId": "deleteLeaderBinding",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Binding removed"
+          }
+        }
+      }
+    },
+    "/api/v1/communities/{community_id}/leader-binding/history": {
+      "get": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Leader binding history",
+        "operationId": "leaderBindingHistory",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Binding history list"
+          }
+        }
+      }
+    },
+    "/api/v1/communities/{community_id}/members": {
+      "post": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Join a community",
+        "operationId": "joinCommunity",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Membership created"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "Leave a community",
+        "operationId": "leaveCommunity",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Left community"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Communities"
+        ],
+        "summary": "List community members",
+        "operationId": "listMembers",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member list"
+          }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "post": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Create a product",
+        "operationId": "createProduct",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProduct"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products/{product_id}": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Get a product",
+        "operationId": "getProduct",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Update a product",
+        "operationId": "updateProduct",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProduct"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Delete a product (Admin only)",
+        "operationId": "deleteProduct",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/products/{product_id}/safety-stock": {
+      "patch": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Set safety stock threshold for a product",
+        "operationId": "setSafetyStock",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "threshold"
+                ],
+                "properties": {
+                  "threshold": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Safety stock updated"
+          }
+        }
+      }
+    },
+    "/api/v1/search/products": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search products with filters",
+        "operationId": "searchProducts",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "brand",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated tag list"
+          },
+          {
+            "name": "min_price",
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_price",
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "new_arrivals"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated search results"
+          }
+        }
+      }
+    },
+    "/api/v1/search/autocomplete": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Autocomplete suggestions",
+        "operationId": "autocomplete",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Autocomplete suggestions"
+          }
+        }
+      }
+    },
+    "/api/v1/search/trending": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Trending search terms",
+        "operationId": "getTrending",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trending terms list"
+          }
+        }
+      }
+    },
+    "/api/v1/search/history": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Current user's search history",
+        "operationId": "getSearchHistory",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search history list"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Clear current user's search history",
+        "operationId": "clearSearchHistory",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "History cleared"
+          }
+        }
+      }
+    },
+    "/api/v1/warehouses": {
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Create a warehouse",
+        "operationId": "createWarehouse",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWarehouse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Warehouse created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Warehouse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "List warehouses",
+        "operationId": "listWarehouses",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Warehouse list"
+          }
+        }
+      }
+    },
+    "/api/v1/warehouses/{warehouse_id}/bins": {
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Create a bin in a warehouse",
+        "operationId": "createBin",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "warehouse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBin"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bin created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bin"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "List bins in a warehouse",
+        "operationId": "listBins",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "warehouse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bin list"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/receipts": {
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Record a stock receipt",
+        "operationId": "createReceipt",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Receipt"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Receipt recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/issues": {
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Record a stock issue",
+        "operationId": "createIssue",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Issue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Issue recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/transfers": {
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Record a stock transfer between warehouses",
+        "operationId": "createTransfer",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Transfer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transfer recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/adjustments": {
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Record an inventory adjustment",
+        "operationId": "createAdjustment",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Adjustment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Adjustment recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cycle-counts": {
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Submit a cycle count",
+        "operationId": "createCycleCount",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CycleCount"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cycle count recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/stock": {
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Query current stock levels",
+        "operationId": "queryStock",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sku_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bin_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "below_safety_stock",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "slow_moving",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock level results"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/transactions": {
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "List inventory transactions",
+        "operationId": "listTransactions",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sku_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO date"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated transaction list"
+          }
+        }
+      }
+    },
+    "/api/v1/communities/{community_id}/commission-rules": {
+      "post": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "Create a commission rule",
+        "operationId": "createCommissionRule",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rule created"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "List commission rules for a community",
+        "operationId": "listCommissionRules",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rule list"
+          }
+        }
+      }
+    },
+    "/api/v1/communities/{community_id}/commission-rules/{rule_id}": {
+      "patch": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "Update a commission rule",
+        "operationId": "updateCommissionRule",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated rule"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "Delete a commission rule (Admin only)",
+        "operationId": "deleteCommissionRule",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/settlements": {
+      "post": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "Create a settlement",
+        "operationId": "createSettlement",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Settlement created"
+          },
+          "409": {
+            "description": "Duplicate settlement"
+          }
+        }
+      }
+    },
+    "/api/v1/settlements/{settlement_id}": {
+      "get": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "Get a settlement",
+        "operationId": "getSettlement",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "settlement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlement detail"
+          }
+        }
+      }
+    },
+    "/api/v1/settlements/{settlement_id}/disputes": {
+      "post": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "Open a dispute on a settlement",
+        "operationId": "createDispute",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "settlement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Dispute created"
+          }
+        }
+      }
+    },
+    "/api/v1/settlements/{settlement_id}/disputes/{dispute_id}": {
+      "patch": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "Resolve a dispute",
+        "operationId": "updateDispute",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "settlement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dispute_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dispute updated"
+          }
+        }
+      }
+    },
+    "/api/v1/settlements/{settlement_id}/finalize": {
+      "post": {
+        "tags": [
+          "Commission"
+        ],
+        "summary": "Finalize a settlement",
+        "operationId": "finalizeSettlement",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "settlement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlement finalized"
+          }
+        }
+      }
+    },
+    "/api/v1/messages": {
+      "post": {
+        "tags": [
+          "Messaging"
+        ],
+        "summary": "Send a message",
+        "operationId": "sendMessage",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Message queued"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Messaging"
+        ],
+        "summary": "Get queued messages for the current user",
+        "operationId": "getQueuedMessages",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queued message list"
+          }
+        }
+      }
+    },
+    "/api/v1/messages/{message_id}/receipt": {
+      "post": {
+        "tags": [
+          "Messaging"
+        ],
+        "summary": "Acknowledge a message receipt",
+        "operationId": "ackMessage",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Receipt updated"
+          }
+        }
+      }
+    },
+    "/api/v1/content": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Create content",
+        "operationId": "createContent",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Content created"
+          }
+        }
+      }
+    },
+    "/api/v1/content/{content_id}": {
+      "get": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Get content (optionally at a specific version)",
+        "operationId": "getContent",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Content detail"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Update content (creates a new draft version)",
+        "operationId": "updateContent",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Content updated"
+          }
+        }
+      }
+    },
+    "/api/v1/content/{content_id}/publish": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Publish current draft",
+        "operationId": "publishContent",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Content published"
+          }
+        }
+      }
+    },
+    "/api/v1/content/{content_id}/rollback": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Rollback to a previous version",
+        "operationId": "rollbackContent",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "target_version"
+                ],
+                "properties": {
+                  "target_version": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Content rolled back"
+          }
+        }
+      }
+    },
+    "/api/v1/content/{content_id}/versions": {
+      "get": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "List content versions",
+        "operationId": "listContentVersions",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Version list"
+          }
+        }
+      }
+    },
+    "/api/v1/content/{content_id}/attachments": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Upload an attachment",
+        "operationId": "uploadContentAttachment",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Attachment uploaded"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "List attachments",
+        "operationId": "listContentAttachments",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment list"
+          }
+        }
+      }
+    },
+    "/api/v1/content/{content_id}/attachments/{attachment_id}": {
+      "delete": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Delete an attachment",
+        "operationId": "deleteContentAttachment",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/templates": {
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Create a template",
+        "operationId": "createTemplate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template created"
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{template_id}": {
+      "get": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Get a template (optionally at a specific version)",
+        "operationId": "getTemplate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template detail"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Update a template",
+        "operationId": "updateTemplate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTemplate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Template updated"
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{template_id}/publish": {
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Publish current template draft",
+        "operationId": "publishTemplate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template published"
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{template_id}/rollback": {
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Rollback template to a previous version",
+        "operationId": "rollbackTemplate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "target_version"
+                ],
+                "properties": {
+                  "target_version": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Template rolled back"
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{template_id}/versions": {
+      "get": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "List template versions",
+        "operationId": "listTemplateVersions",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Version list"
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{template_id}/migrations": {
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Create a template migration (Admin only)",
+        "operationId": "createTemplateMigration",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TemplateField"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Migration created"
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{template_id}/attachments": {
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Upload a template attachment",
+        "operationId": "uploadTemplateAttachment",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Attachment uploaded"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "List template attachments",
+        "operationId": "listTemplateAttachments",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment list"
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{template_id}/attachments/{attachment_id}": {
+      "delete": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Delete a template attachment",
+        "operationId": "deleteTemplateAttachment",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/audit-log": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Query the audit log (Admin only)",
+        "operationId": "queryAuditLog",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action_type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO date"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated audit log entries"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tickets": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Create a support ticket",
+        "operationId": "createTicket",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ticket created"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List support tickets",
+        "operationId": "listTickets",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated ticket list"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tickets/{ticket_id}": {
+      "patch": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Update a ticket",
+        "operationId": "updateTicket",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ticket updated"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/group-leader-performance": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Group leader performance report",
+        "operationId": "groupLeaderPerformance",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "community_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO date"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Performance report data"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Liveness probe",
+        "operationId": "liveness",
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "db": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "degraded"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Readiness probe",
+        "operationId": "readiness",
+        "responses": {
+          "200": {
+            "description": "Service is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

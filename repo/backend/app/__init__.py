@@ -77,9 +77,18 @@ def _register_blueprints(app: Flask) -> None:
     from .routes.content import content_bp
     from .routes.templates import templates_bp
     from .routes.admin import admin_bp
+    from flask_swagger_ui import get_swaggerui_blueprint
 
     # Health probes (no version prefix — standard convention)
     app.register_blueprint(health_bp)
+
+    # Swagger UI at /docs
+    swagger_bp = get_swaggerui_blueprint(
+        "/docs",
+        "/static/openapi.json",
+        config={"app_name": "W2T105 API"},
+    )
+    app.register_blueprint(swagger_bp, url_prefix="/docs")
 
     v1 = "/api/v1"
     app.register_blueprint(auth_bp, url_prefix=v1)

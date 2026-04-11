@@ -1,6 +1,6 @@
 # Excluded from version control
 convert_ai_session.py
-# temp/
+temp/
 # Local IDE / agent config (do not publish)
 .claude/
 
@@ -15,8 +15,8 @@ venv/
 Thumbs.db
 
 
-*.tmp.md
-c
+**/*.tmp.md
+
 # Environment variables
 .env
 *.local
