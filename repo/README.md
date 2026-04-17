@@ -1,3 +1,5 @@
+Project Type: backend
+
 # Neighborhood Commerce & Content Operations Management System
 
 Backend service for a local group-leader commerce model with catalog/search, inventory, settlements, content/templates, messaging, and admin governance.
@@ -52,7 +54,7 @@ Documentation: `docs/` (prompt, questions, API spec, design).
 From the `repo/` directory:
 
 ```bash
-docker compose up --build
+docker-compose up --build
 ```
 
 On first start and on every restart, the container entrypoint:
@@ -74,10 +76,44 @@ Open the app:
 Stop:
 
 ```bash
-docker compose down
+docker-compose down
 ```
 
 Runtime data (SQLite DB, keys, logs, attachments) lives under `repo/data/` as a **single** Compose bind mount (`./data:/app/data`). Do not bind-mount only `db.sqlite3` by file path on an empty host tree, or Docker may create a **directory** named `db.sqlite3` and SQLite will fail with `unable to open database file`.
+
+## Verify the System is Working
+
+After starting the system, run the following commands to confirm everything is operational:
+
+```bash
+# 1. Confirm health
+curl http://localhost:5000/health
+
+# 2. Login with the admin account
+curl -X POST http://localhost:5000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "AdminPass1234!"}'
+
+# 3. Use the returned token on a protected endpoint
+curl http://localhost:5000/api/v1/users \
+  -H "Authorization: Bearer <token_from_step_2>"
+```
+
+Replace `<token_from_step_2>` with the `token` value from the login response.
+
+## Demo Credentials
+
+The seed script creates the following accounts on first start. All roles in the RBAC system are represented:
+
+| Role               | Username     | Password         |
+|--------------------|--------------|------------------|
+| Administrator      | admin        | AdminPass1234!   |
+| Operations Manager | opsmanager   | OpsPass1234!     |
+| Moderator          | moderator    | ModPass1234!     |
+| Group Leader       | gl_alice     | AlicePass1234!   |
+| Member             | member_bob   | BobPass1234!     |
+
+The **Staff** role exists in the RBAC hierarchy but has no seeded user. Staff accounts can be created by an Administrator via the user management API.
 
 ## Environment Variables
 
@@ -97,12 +133,14 @@ All environment variables are defined in `docker-compose.yml` and centralized th
 Override on the command line:
 
 ```bash
-FLASK_ENV=production SECRET_KEY=your-secret docker compose up --build
+FLASK_ENV=production SECRET_KEY=your-secret docker-compose up --build
 ```
 
 ## Tests
 
-**Pre-merge acceptance gate:** every change must pass the full suite below with **exit code 0** before merging to the main branch. Use `run_tests.sh` (Unix/macOS/CI) or `run_tests.ps1` (Windows with Python deps). No merge without a green run.
+All testing is Docker-contained. No host-level Python or pip installation is required or supported.
+
+**Pre-merge acceptance gate:** every change must pass the full suite below with **exit code 0** before merging to the main branch.
 
 **Required command (acceptance):** from `repo/` run:
 
@@ -110,17 +148,18 @@ FLASK_ENV=production SECRET_KEY=your-secret docker compose up --build
 bash run_tests.sh
 ```
 
-- **Host with dependencies:** run `pip install -r requirements.txt` first; tests execute on your machine.
-- **Host without pytest (e.g. CI):** the same `run_tests.sh` detects that, and **re-runs itself inside** the Docker app image (needs `docker compose` and an image build -- run `docker compose build` once in the job before `bash run_tests.sh`).
+Run tests with:
+
+```bash
+docker-compose run --rm app python -m pytest
+```
 
 On Windows: `powershell -ExecutionPolicy Bypass -File run_tests.ps1` (host with deps only).
-
-Optional: `bash scripts/ci_run_tests.sh` is only a thin wrapper that calls `run_tests.sh`.
 
 ### Already-running container
 
 ```bash
-docker compose exec app bash run_tests.sh
+docker-compose exec app python -m pytest
 ```
 
 ## Notes

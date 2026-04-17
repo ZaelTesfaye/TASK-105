@@ -372,3 +372,62 @@ def test_update_service_area_invalid_zip_400(client, auth_headers):
         "zip": "999",
     }, headers=auth_headers)
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# GET /communities/{id}/leader-binding/history
+# ---------------------------------------------------------------------------
+
+def test_binding_history_200(client, auth_headers):
+    """GET /communities/{id}/leader-binding/history returns 200 with at least one entry after binding."""
+    cid = _create_community(client, auth_headers)
+    gl_id, _ = _register_and_login(client, role="Group Leader")
+    client.post(f"{BASE}/communities/{cid}/leader-binding", json={
+        "user_id": gl_id,
+    }, headers=auth_headers)
+    resp = client.get(f"{BASE}/communities/{cid}/leader-binding/history", headers=auth_headers)
+    assert resp.status_code == 200
+    assert isinstance(resp.json, list)
+    assert len(resp.json) >= 1
+
+
+def test_binding_history_unauthenticated_401(client):
+    """GET /communities/{id}/leader-binding/history without auth returns 401."""
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.get(f"{BASE}/communities/{fake_id}/leader-binding/history")
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# DELETE /communities/{id}/service-areas/{area_id}
+# ---------------------------------------------------------------------------
+
+def test_delete_service_area_204(client, auth_headers):
+    """DELETE /communities/{id}/service-areas/{area_id} returns 204 and area is no longer listed."""
+    cid = _create_community(client, auth_headers)
+    area_resp = client.post(f"{BASE}/communities/{cid}/service-areas", json={
+        "name": "Delete Zone",
+        "address_line1": "1 Elm St",
+        "city": "Austin",
+        "state": "TX",
+        "zip": "78701",
+    }, headers=auth_headers)
+    assert area_resp.status_code == 201
+    area_id = area_resp.json["service_area_id"]
+
+    del_resp = client.delete(f"{BASE}/communities/{cid}/service-areas/{area_id}", headers=auth_headers)
+    assert del_resp.status_code == 204
+
+    # Verify the deleted area is no longer in the listing
+    list_resp = client.get(f"{BASE}/communities/{cid}/service-areas", headers=auth_headers)
+    assert list_resp.status_code == 200
+    area_ids = [a["service_area_id"] for a in list_resp.json]
+    assert area_id not in area_ids
+
+
+def test_delete_service_area_not_found_404(client, auth_headers):
+    """DELETE /communities/{id}/service-areas/{non_existent_id} returns 404."""
+    cid = _create_community(client, auth_headers)
+    fake_area_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.delete(f"{BASE}/communities/{cid}/service-areas/{fake_area_id}", headers=auth_headers)
+    assert resp.status_code == 404

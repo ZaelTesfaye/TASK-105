@@ -4,29 +4,22 @@
 # Mandatory pre-merge gate: exit 0 required before merging (see README.md § Tests).
 # Run from repo/:  bash run_tests.sh
 #
-# - If this Python has pytest (after pip install -r requirements.txt), tests run on the host.
-# - If pytest is missing (typical CI with only Docker), this script re-invokes itself inside
-#   the app image so the same file path still satisfies "run run_tests.sh".
+# All tests run inside Docker. No host-level Python or pip installation is
+# required or supported.
 # ============================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 REPO="$ROOT"
 
-# Re-run inside Docker once when host has no pytest (avoids requiring a second script name).
-if [ "${RUN_TESTS_SH_IN_CONTAINER:-}" != "1" ]; then
-  if ! python -m pytest --version >/dev/null 2>&1; then
-    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-      echo "[INFO]  pytest not found on host — running the same run_tests.sh inside Docker..."
-      cd "$REPO"
-      exec env RUN_TESTS_SH_IN_CONTAINER=1 \
-        docker compose run -T --rm --no-deps \
-        --entrypoint "" \
-        -e RUN_TESTS_SH_IN_CONTAINER=1 \
-        app bash /app/run_tests.sh "$@"
-    fi
-  fi
+# ── Docker required ─────────────────────────────────────────
+if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
+    echo "Error: Docker is required. Please install Docker and try again." && exit 1
 fi
+
+# ── Build image if needed ───────────────────────────────────
+cd "$REPO"
+docker compose build --quiet
 
 # ── Colour helpers ──────────────────────────────────────────
 GREEN='\033[0;32m'; RED='\033[0;31m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -40,37 +33,22 @@ echo "  Acceptance Test Suite — Neighborhood Commerce System"
 echo "========================================================"
 echo ""
 
-# ── Prerequisites ────────────────────────────────────────────
-info "Checking Python …"
-python --version 2>&1 || { fail "python not found — install Python 3.12+"; exit 1; }
+# ── Common docker compose run prefix ───────────────────────
+RUN="docker compose run -T --rm --no-deps -e FLASK_ENV=testing -e FERNET_KEY_PATH=/app/data/keys/secret.key -e LOG_FILE=/app/data/logs/app.jsonl -e ATTACHMENT_DIR=/app/data/attachments --entrypoint ''"
 
-info "Checking pytest …"
-python -m pytest --version 2>&1 || {
-  fail "pytest not found — run: pip install -r requirements.txt, or install Docker and docker compose"
-  exit 1
-}
-
-# ── Data directories and Fernet key ─────────────────────────
-info "Ensuring data directories exist …"
-mkdir -p "$REPO/data/keys" "$REPO/data/logs" "$REPO/data/attachments"
-
-if [ ! -f "$REPO/data/keys/secret.key" ]; then
-    info "Generating Fernet encryption key …"
-    python -c "
+# ── Ensure data dirs and Fernet key inside the container ────
+info "Ensuring data directories and Fernet key …"
+docker compose run -T --rm --no-deps --entrypoint "" \
+    app bash -c "
+mkdir -p /app/data/keys /app/data/logs /app/data/attachments
+if [ ! -f /app/data/keys/secret.key ]; then
+    python -c \"
 from cryptography.fernet import Fernet
-with open('$REPO/data/keys/secret.key', 'wb') as f:
+with open('/app/data/keys/secret.key', 'wb') as f:
     f.write(Fernet.generate_key())
-"
-    ok "Key written to $REPO/data/keys/secret.key"
+\"
 fi
-
-# ── Environment ──────────────────────────────────────────────
-export PYTHONPATH="$REPO/backend"
-export FERNET_KEY_PATH="$REPO/data/keys/secret.key"
-export LOG_FILE="$REPO/data/logs/app.jsonl"
-export ATTACHMENT_DIR="$REPO/data/attachments"
-
-cd "$ROOT"
+"
 
 # ── Run unit tests ───────────────────────────────────────────
 echo ""
@@ -78,11 +56,13 @@ echo "--------------------------------------------------------"
 echo "  PHASE 1 — Unit Tests  (backend/tests/unit/)"
 echo "--------------------------------------------------------"
 UNIT_RESULT=0
-python -m pytest backend/tests/unit/ \
-    -v \
-    --tb=short \
-    --no-header \
-    -q \
+docker compose run -T --rm --no-deps --entrypoint "" \
+    -e FLASK_ENV=testing \
+    -e FERNET_KEY_PATH=/app/data/keys/secret.key \
+    -e LOG_FILE=/app/data/logs/app.jsonl \
+    -e ATTACHMENT_DIR=/app/data/attachments \
+    app python -m pytest backend/tests/unit/ \
+    -v --tb=short --no-header -q \
     2>&1 || UNIT_RESULT=$?
 
 # ── Run API functional tests ─────────────────────────────────
@@ -91,24 +71,28 @@ echo "--------------------------------------------------------"
 echo "  PHASE 2 — API Functional Tests  (backend/tests/api/)"
 echo "--------------------------------------------------------"
 API_RESULT=0
-python -m pytest backend/tests/api/ \
-    -v \
-    --tb=short \
-    --no-header \
-    -q \
+docker compose run -T --rm --no-deps --entrypoint "" \
+    -e FLASK_ENV=testing \
+    -e FERNET_KEY_PATH=/app/data/keys/secret.key \
+    -e LOG_FILE=/app/data/logs/app.jsonl \
+    -e ATTACHMENT_DIR=/app/data/attachments \
+    app python -m pytest backend/tests/api/ \
+    -v --tb=short --no-header -q \
     2>&1 || API_RESULT=$?
 
-# ── Run integration / job tests ──────────────────────────────────────────────
+# ── Run integration / job tests ──────────────────────────────
 echo ""
 echo "--------------------------------------------------------"
 echo "  PHASE 3 — Integration/Job Tests  (backend/tests/integration/)"
 echo "--------------------------------------------------------"
 JOBS_RESULT=0
-python -m pytest backend/tests/integration/ \
-    -v \
-    --tb=short \
-    --no-header \
-    -q \
+docker compose run -T --rm --no-deps --entrypoint "" \
+    -e FLASK_ENV=testing \
+    -e FERNET_KEY_PATH=/app/data/keys/secret.key \
+    -e LOG_FILE=/app/data/logs/app.jsonl \
+    -e ATTACHMENT_DIR=/app/data/attachments \
+    app python -m pytest backend/tests/integration/ \
+    -v --tb=short --no-header -q \
     2>&1 || JOBS_RESULT=$?
 
 # ── Coverage report ──────────────────────────────────────────
@@ -117,12 +101,16 @@ echo "--------------------------------------------------------"
 echo "  PHASE 4 — Coverage Report"
 echo "--------------------------------------------------------"
 COV_RESULT=0
-python -m pytest backend/tests/unit/ backend/tests/api/ backend/tests/integration/ \
+docker compose run -T --rm --no-deps --entrypoint "" \
+    -e FLASK_ENV=testing \
+    -e FERNET_KEY_PATH=/app/data/keys/secret.key \
+    -e LOG_FILE=/app/data/logs/app.jsonl \
+    -e ATTACHMENT_DIR=/app/data/attachments \
+    app python -m pytest backend/tests/unit/ backend/tests/api/ backend/tests/integration/ \
     --cov=app \
     --cov-report=term-missing:skip-covered \
     --cov-report=html:htmlcov \
-    --tb=no \
-    -q \
+    --tb=no -q \
     2>&1 || COV_RESULT=$?
 
 # ── Aggregate summary ────────────────────────────────────────

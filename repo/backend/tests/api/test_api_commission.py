@@ -377,3 +377,32 @@ def test_settlement_totals_scoped_to_community_warehouses(client, auth_headers):
     }, headers=auth_headers)
     assert s2.status_code == 201
     assert s2.json["total_order_value_usd"] == 500.0
+
+
+# ---------------------------------------------------------------------------
+# GET /settlements/{settlement_id}
+# ---------------------------------------------------------------------------
+
+def test_get_settlement_200(client, auth_headers):
+    """GET /settlements/{id} returns 200 with expected settlement fields."""
+    cid = _create_community(client, auth_headers)
+    created = _create_settlement(client, auth_headers, cid)
+    assert created.status_code == 201
+    settlement_id = created.json["settlement_id"]
+
+    resp = client.get(f"{BASE}/settlements/{settlement_id}", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json
+    assert data["settlement_id"] == settlement_id
+    assert "status" in data
+    assert "period_start" in data
+    assert "period_end" in data
+    assert "total_order_value_usd" in data
+    assert "commission_amount_usd" in data
+
+
+def test_get_settlement_not_found_404(client, auth_headers):
+    """GET /settlements/{non_existent_id} returns 404."""
+    fake_id = uuid.uuid4().hex
+    resp = client.get(f"{BASE}/settlements/{fake_id}", headers=auth_headers)
+    assert resp.status_code == 404
