@@ -105,15 +105,16 @@ Replace `<token_from_step_2>` with the `token` value from the login response.
 
 The seed script creates the following accounts on first start. All roles in the RBAC system are represented:
 
-| Role               | Username     | Password         |
-|--------------------|--------------|------------------|
-| Administrator      | admin        | AdminPass1234!   |
-| Operations Manager | opsmanager   | OpsPass1234!     |
-| Moderator          | moderator    | ModPass1234!     |
-| Group Leader       | gl_alice     | AlicePass1234!   |
-| Member             | member_bob   | BobPass1234!     |
+| Role               | Username            | Password         |
+|--------------------|---------------------|------------------|
+| Administrator      | admin               | AdminPass1234!   |
+| Operations Manager | opsmanager          | OpsPass1234!     |
+| Moderator          | moderator           | ModPass1234!     |
+| Group Leader       | gl_alice            | AlicePass1234!   |
+| Staff              | staff@example.com   | Staff1234!       |
+| Member             | member_bob          | BobPass1234!     |
 
-The **Staff** role exists in the RBAC hierarchy but has no seeded user. Staff accounts can be created by an Administrator via the user management API.
+All six RBAC roles are seeded on first start.
 
 ## Environment Variables
 
@@ -138,7 +139,7 @@ FLASK_ENV=production SECRET_KEY=your-secret docker-compose up --build
 
 ## Tests
 
-All testing is Docker-contained. No host-level Python or pip installation is required or supported.
+All testing is Docker-contained. Host-level Python dependency setup is neither required nor supported.
 
 **Pre-merge acceptance gate:** every change must pass the full suite below with **exit code 0** before merging to the main branch.
 
@@ -151,15 +152,13 @@ bash run_tests.sh
 Run tests with:
 
 ```bash
-docker-compose run --rm app python -m pytest
+docker-compose run --rm backend pytest
 ```
-
-On Windows: `powershell -ExecutionPolicy Bypass -File run_tests.ps1` (host with deps only).
 
 ### Already-running container
 
 ```bash
-docker-compose exec app python -m pytest
+docker-compose exec backend pytest
 ```
 
 ## Notes

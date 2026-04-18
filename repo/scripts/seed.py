@@ -46,11 +46,12 @@ def seed():
     from app.models.user import User
 
     users_spec = [
-        ("admin",       "AdminPass1234!",  "Administrator"),
-        ("opsmanager",  "OpsPass1234!",    "Operations Manager"),
-        ("moderator",   "ModPass1234!",    "Moderator"),
-        ("gl_alice",    "AlicePass1234!",  "Group Leader"),
-        ("member_bob",  "BobPass1234!",    "Member"),
+        ("admin",              "AdminPass1234!",  "Administrator"),
+        ("opsmanager",         "OpsPass1234!",    "Operations Manager"),
+        ("moderator",          "ModPass1234!",    "Moderator"),
+        ("gl_alice",           "AlicePass1234!",  "Group Leader"),
+        ("staff@example.com",  "Staff1234!",      "Staff"),
+        ("member_bob",         "BobPass1234!",    "Member"),
     ]
 
     with app.app_context():
